@@ -1,0 +1,417 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#FFF0EA">
+<title>ててまる こども画面</title>
+<link rel="stylesheet" href="styles.css">
+<script src="data.js"></script><script src="trial-data.js"></script>
+<script src="voice.js"></script>
+<script type="module" src="./viewer.js"></script>
+</head>
+<body>
+<div class="phone child-bg is-intro" id="childPhone">
+
+  <div class="child-topbar intro-item"><a class="pill-btn" href="trial.html">いりぐち</a> <span class="quick-mode-label">おためしタイマー</span>
+    <button class="pill-btn pressable" id="voiceToggle" aria-pressed="true" aria-label="ててまるの声のON/OFF">
+      <span class="voice-on">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="4 9 9 9 13 5 13 19 9 15 4 15" fill="currentColor" stroke="none"/><path d="M16 8a5 5 0 0 1 0 8"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>
+        こえ オン
+      </span>
+      <span class="voice-off">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="4 9 9 9 13 5 13 19 9 15 4 15" fill="currentColor" stroke="none"/><line x1="16" y1="8" x2="21" y2="13"/><line x1="21" y1="8" x2="16" y2="13"/></svg>
+        こえ オフ
+      </span>
+    </button>
+  </div>
+
+  <main class="content child-content">
+
+    <span class="speech intro-item" id="speech" aria-live="polite">やあ!いっしょに がんばろう!</span>
+
+    <!-- ててまる(3D)を中心に、まわりへUIを広げる -->
+    <section class="stage is-collapsed" id="stage" aria-label="ててまる">
+      <div class="orbit" aria-hidden="true"></div>
+
+      <plush-pal data-motion="intro" class="tetemaru-btn" id="mainPal"></plush-pal>
+
+      <!-- 左上: なかよし度 -->
+      <div class="satellite sat-tl" aria-label="ててまるとのなかよし度">
+      <svg class="affinity-heart" viewBox="0 0 24 24" width="40" height="40" aria-hidden="true">
+        <defs>
+          <clipPath id="heartClip"><path d="M12 20C12 20 3 14 3 8.5 3 5 5.5 3 8.5 3 10.5 3 12 4.5 12 6 12 4.5 13.5 3 15.5 3 18.5 3 21 5 21 8.5 21 14 12 20 12 20Z"/></clipPath>
+        </defs>
+        <path class="affinity-heart-bg" d="M12 20C12 20 3 14 3 8.5 3 5 5.5 3 8.5 3 10.5 3 12 4.5 12 6 12 4.5 13.5 3 15.5 3 18.5 3 21 5 21 8.5 21 14 12 20 12 20Z"/>
+        <g clip-path="url(#heartClip)">
+          <g id="affinityWaveGroup" class="affinity-wave-group">
+            <path id="affinityWaveBack" class="affinity-wave affinity-wave-back" d=""></path>
+            <path id="affinityWaveFront" class="affinity-wave affinity-wave-front" d=""></path>
+          </g>
+        </g>
+        <path class="affinity-heart-line" d="M12 20C12 20 3 14 3 8.5 3 5 5.5 3 8.5 3 10.5 3 12 4.5 12 6 12 4.5 13.5 3 15.5 3 18.5 3 21 5 21 8.5 21 14 12 20 12 20Z"/>
+      </svg>
+        <span class="sat-value" id="affinityPct">15%</span>
+        <span class="sat-label" id="affinityLevel">はじめまして</span>
+      </div>
+
+      <!-- 右上: きょうのがんばり -->
+      <div class="satellite sat-tr" aria-label="きょうは 8もん といた">
+        <span class="sat-ring" aria-hidden="true"><span></span></span>
+        <span class="sat-value">8もん</span>
+        <span class="sat-label">がんばり</span>
+      </div>
+
+      <!-- 左下: あたたかさ -->
+      <button class="satellite sat-bl" id="heatSat" aria-haspopup="dialog" aria-label="ててまるの あたたかさを かえる">
+        <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 14.8V4a2 2 0 0 0-4 0v10.8a4 4 0 1 0 4 0z"/><path d="M12 11v6" stroke-width="3"/></svg>
+        <span class="sat-value" id="heatSatValue">36ど</span>
+        <span class="sat-label">あたたかさ</span>
+      </button>
+
+      <!-- 右下: ぎゅっ -->
+      <button class="satellite sat-br sat-accent" id="hugBtn" aria-label="ててまるを ぎゅっと する">
+        <svg width="30" height="30" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 20C12 20 3 14 3 8.5 3 5 5.5 3 8.5 3 10.5 3 12 4.5 12 6 12 4.5 13.5 3 15.5 3 18.5 3 21 5 21 8.5 21 14 12 20 12 20Z"/></svg>
+        <span class="sat-value">ぎゅっ</span>
+        <span class="sat-label">する</span>
+      </button>
+    </section>
+
+    <span class="swipe-hint">ててまるを なぞると まわるよ</span>
+    <div id="affinityToast" class="affinity-toast">なかよし度アップ!</div>
+
+    <!-- 今日の目標 -->
+    <div class="child-card goal-card intro-item">
+      <span class="child-goal-label">きょうの もくひょう</span>
+      <label class="child-goal-value"><select id="subject" aria-label="きょうの きょうか"></select> を 10ぷん</label>
+      <button class="start-btn" id="startBtn">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><polygon points="6 4 20 12 6 20"/></svg>
+        はじめる
+      </button>
+    </div>
+  </main>
+
+  <!-- あたたかさの調整(下から出るシート) -->
+  <div class="sheet" id="heatSheet" hidden>
+    <div class="sheet-backdrop" data-close></div>
+    <div class="sheet-panel" role="dialog" aria-modal="true" aria-labelledby="heatTitle">
+      <span class="sheet-grip" aria-hidden="true"></span>
+      <span class="setting-label-top child-card-title" id="heatTitle">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2c2 3-2 4-1 7 1-1 2-1 3 0 1 2-1 4-3 4-3 0-5-2-5-5 0-3 2-4 2-6 1 1 1 2 1 3z"/><path d="M9 17a3 3 0 0 0 6 0"/></svg>
+        ててまるの あたたかさ
+      </span>
+      <div class="temp-value" id="heatLabel">36ど</div>
+      <div class="temp-row">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2v20M5 7l14 10M19 7L5 17M2 12h20"/></svg>
+        <input id="heat" type="range" min="28" max="40" step="1" value="36" aria-label="ててまるのあたたかさ">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M2 12h2M20 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4"/></svg>
+      </div>
+      <button class="sheet-close pressable" data-close>できた</button>
+    </div>
+  </div>
+
+
+  <!-- 学習中ロックオーバーレイ -->
+  <div class="lock-overlay hidden" id="lockOverlay" role="dialog" aria-modal="true" aria-label="学習ロック中">
+    <div class="lock-icon-wrap"><plush-pal data-motion="idle" class="lock-canvas"></plush-pal>
+      <span class="lock-badge">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+      </span>
+    </div>
+    <div class="lock-title">がくしゅうロック中</div>
+    <div class="lock-sub">この画面で ててまると いっしょに<br>おべんきょうしよう</div>
+
+    <div class="timer" id="timer">00:00</div>
+    <div class="lock-progress-track"><div class="lock-progress-fill" id="lockProgressFill"></div></div>
+    <div class="lock-goal-label" id="lockGoalLabel">もくひょう:さんすうを 10ぷん</div>
+
+    <div class="allowed-box">
+      <span class="allowed-title">つかえるもの</span>
+      <span class="allowed-item">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+        ててまる(カメラ・AI・教材)
+      </span>
+      <span class="allowed-item">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        学習タイマー
+      </span>
+    </div>
+
+    <button class="unlock-btn" id="unlockBtn">
+      <span class="unlock-fill" id="unlockFill"></span>
+      <span id="unlockLabel">ほごしゃは ここを 3びょう おしてください(かいじょ)</span>
+    </button>
+  </div>
+
+  <nav class="tabbar child-tabbar intro-item">
+    <a class="tab child-tab active" href="timer.html" aria-current="page">
+      <span class="child-tab-icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9"/></svg>
+      </span>
+      ホーム
+    </a>
+    <a class="tab child-tab" href="sample-log.html">
+      <span class="child-tab-icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+      </span>
+      きろく
+    </a>
+  </nav>
+</div>
+
+<script>
+// ---- ててまる(3D)とセリフ ----
+const tetemaru = document.getElementById("mainPal");
+const speechEl = document.getElementById("speech");
+let speechTimer = null;
+function setSpeech(text, { voice = true, keep = false } = {}) {
+  speechEl.textContent = text;
+  speechEl.classList.remove("pop");
+  void speechEl.offsetWidth;
+  speechEl.classList.add("pop");
+  if (voice) sayIfOn(text);
+  clearTimeout(speechTimer);
+  if (!keep) speechTimer = setTimeout(() => { speechEl.textContent = "きょうも いっしょに がんばろう!"; }, 4000);
+}
+
+const TAP_LINES = ["わーい!", "くすぐったいよ〜", "えへへ、うれしいな!", "いっしょに あそぼ!"];
+let tapIndex = 0;
+tetemaru.addEventListener("pal-tap", () => {
+  setSpeech(TAP_LINES[tapIndex++ % TAP_LINES.length]);
+  bumpAffinity(1);
+});
+
+// ---- あたたかさ(下から出るシート) ----
+const heat = document.getElementById("heat");
+const heatLabel = document.getElementById("heatLabel");
+const heatSatValue = document.getElementById("heatSatValue");
+const heatSheet = document.getElementById("heatSheet");
+const heatSat = document.getElementById("heatSat");
+heat.value=readTrial("heat") || "36"; heatLabel.textContent=heatSatValue.textContent=heat.value+"ど";
+heat.addEventListener("input", () => {
+  writeTrial("heat",heat.value);
+  heatLabel.textContent = heat.value + "ど";
+  heatSatValue.textContent = heat.value + "ど";
+});
+function openHeatSheet() {
+  heatSheet.hidden = false;
+  requestAnimationFrame(() => heatSheet.classList.add("open"));
+  heat.focus();
+}
+function closeHeatSheet() {
+  heatSheet.classList.remove("open");
+  setTimeout(() => { heatSheet.hidden = true; }, 220);
+  heatSat.focus();
+  setSpeech(Number(heat.value) >= 37 ? "ぽかぽか あったかい!" : "ちょうど いい あたたかさ!");
+}
+heatSat.addEventListener("click", openHeatSheet);
+heatSheet.querySelectorAll("[data-close]").forEach((el) => el.addEventListener("click", closeHeatSheet));
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !heatSheet.hidden) closeHeatSheet(); });
+
+// ---- 学習ロック機能 ----
+const GOAL_SECONDS = 10 * 60; // 今日の目標:10分
+const startBtn = document.getElementById("startBtn");
+const overlay = document.getElementById("lockOverlay");
+const timerEl = document.getElementById("timer");
+const progressFill = document.getElementById("lockProgressFill");
+const unlockBtn = document.getElementById("unlockBtn");
+const unlockFill = document.getElementById("unlockFill");
+const unlockLabel = document.getElementById("unlockLabel");
+
+const subject = document.querySelector("#subject");
+subjects.forEach((s,i)=>subject.add(new Option(["さんすう","こくご","えいご","りか","しゃかい"][i],s)));
+subject.value = selectedSubject();
+subject.onchange = () => writeTrial('subject',subject.value);
+let activeRun;
+let elapsed = 0;
+let tickTimer = null;
+let holdTimer = null;
+let holdStart = null;
+const HOLD_MS = 3000;
+
+function formatTime(sec) {
+  const m = String(Math.floor(sec / 60)).padStart(2, "0");
+  const s = String(sec % 60).padStart(2, "0");
+  return m + ":" + s;
+}
+
+function startLock(resume=false) {
+  if (tickTimer!==null) return;
+  activeRun=beginRun();
+  subject.value=activeRun.subject; document.querySelector("#lockGoalLabel").textContent="もくひょう："+subject.selectedOptions[0].textContent+"を 10ぷん";
+  overlay.classList.remove("hidden");
+  elapsed = Math.max(0,Math.floor((Date.now()-activeRun.start)/1000));
+  timerEl.textContent = formatTime(elapsed);
+  progressFill.style.width = Math.min(100,elapsed/GOAL_SECONDS*100)+"%";
+  tickTimer = setInterval(() => {
+    elapsed = Math.max(0,Math.floor((Date.now()-activeRun.start)/1000));
+    timerEl.textContent = formatTime(elapsed);
+    progressFill.style.width = Math.min(100, (elapsed / GOAL_SECONDS) * 100) + "%";
+  }, 1000);
+  if (!resume) {sayIfOn(activeRun.subject+"、いっしょに がんばろうね!"); bumpAffinity(3);}
+}
+
+function endLock() {
+  const saved=finishRun(activeRun); if (saved && dayKey(new Date(activeRun.start))===dayKey(today)) effortCount++; updateEffort();
+  clearInterval(tickTimer); tickTimer=null;
+  overlay.classList.add("hidden"); if(!saved) return;
+  tetemaru.playMotion?.("happy");
+  setSpeech("よくがんばったね!おつかれさま!");
+  bumpAffinity(8);
+}
+
+startBtn.addEventListener("click", ()=>startLock());
+
+function startHold(e) {
+  if (holdTimer!==null || overlay.classList.contains("hidden")) return;
+  e.preventDefault();
+  holdStart = Date.now();
+  unlockLabel.textContent = "そのまま おしつづけて...";
+  holdTimer = setInterval(() => {
+    const pct = Math.min(100, ((Date.now() - holdStart) / HOLD_MS) * 100);
+    unlockFill.style.width = pct + "%";
+    if (pct >= 100) {
+      clearInterval(holdTimer); holdTimer=null;
+      cancelHold(); endLock();
+    }
+  }, 30);
+}
+function cancelHold() {
+  clearInterval(holdTimer); holdTimer=null;
+  unlockFill.style.width = "0%";
+  unlockLabel.textContent = "ほごしゃは ここを 3びょう おしてください(かいじょ)";
+}
+unlockBtn.addEventListener("keydown", e=>{if(!e.repeat && (e.key===" " || e.key==="Enter"))startHold(e)});
+unlockBtn.addEventListener("keyup", cancelHold);
+unlockBtn.addEventListener("blur", cancelHold);
+unlockBtn.addEventListener("pointerdown", startHold);
+unlockBtn.addEventListener("pointerup", cancelHold);
+unlockBtn.addEventListener("pointerleave", cancelHold);
+unlockBtn.addEventListener("pointercancel", cancelHold);
+
+// ---- ぎゅっとする:タップ反応 ----
+const hugBtn = document.getElementById("hugBtn");
+hugBtn.addEventListener("click", () => {
+  tetemaru.playMotion?.("hug");
+  setSpeech("あったかいね、ありがとう!");
+  bumpAffinity(2);
+});
+
+// ---- 声のON/OFF ----
+const voiceToggle = document.getElementById("voiceToggle");
+let voiceOn = readTrial("voice") !== "off";
+voiceToggle.setAttribute("aria-pressed",String(voiceOn));
+voiceToggle.addEventListener("click", () => {
+  voiceOn = !voiceOn; writeTrial("voice",voiceOn?"on":"off");
+  voiceToggle.setAttribute("aria-pressed", String(voiceOn));
+  if (voiceOn) sayIfOn("ててまるだよ、よろしくね!");
+});
+
+// voice.js の speak() を、声OFFの時は呼ばないようにラップする
+function sayIfOn(text) {
+  const hour = new Date().getHours();
+  if (voiceOn && !(readTrial("sleep")!=="off" && (hour>=21 || hour<7))) speak(text);
+}
+
+// ---- なかよし度:ハートの水ゆらゆらゲージ ----
+// ハートの輪郭は y=3(てっぺん)〜y=20(下のとがり)。水位(baselineY)を直接パスに焼き込むことで、
+// SVGのtransform単位のあいまいさに左右されず、%とハートの水位を正確に一致させる。
+const AFFINITY_TOP_Y = 3;   // 100%のときの水面
+const AFFINITY_BOTTOM_Y = 21.5; // 0%のときの水面(ハートの下端より少し下=完全に空)
+
+function buildWavePath(baselineY, phaseDeg) {
+  const amp = 0.7, wavelength = 24, step = 3;
+  const pts = [];
+  for (let x = -24; x <= 48; x += step) {
+    const y = baselineY + amp * Math.sin((2 * Math.PI * x) / wavelength + (phaseDeg * Math.PI) / 180);
+    pts.push(`${x},${y.toFixed(2)}`);
+  }
+  return `M ${pts[0]} L ${pts.slice(1).join(" L ")} L 48,30 L -24,30 Z`;
+}
+
+const waveBackEl = document.getElementById("affinityWaveBack");
+const waveFrontEl = document.getElementById("affinityWaveFront");
+const affinityLevelEl = document.getElementById("affinityLevel");
+const affinityPctEl = document.getElementById("affinityPct");
+const affinityToastEl = document.getElementById("affinityToast");
+
+function pctToBaselineY(pct) {
+  return AFFINITY_TOP_Y + ((AFFINITY_BOTTOM_Y - AFFINITY_TOP_Y) * (100 - pct)) / 100;
+}
+
+let currentBaselineY = pctToBaselineY(0);
+let waveAnimFrame = null;
+
+function drawWaveAt(baselineY) {
+  waveBackEl.setAttribute("d", buildWavePath(baselineY, 0));
+  waveFrontEl.setAttribute("d", buildWavePath(baselineY, 180));
+}
+
+function animateWaveTo(targetBaselineY) {
+  cancelAnimationFrame(waveAnimFrame);
+  const startY = currentBaselineY;
+  const startTime = performance.now();
+  const duration = 700;
+  function step(now) {
+    const t = Math.min(1, (now - startTime) / duration);
+    const eased = 1 - Math.pow(1 - t, 3);
+    currentBaselineY = startY + (targetBaselineY - startY) * eased;
+    drawWaveAt(currentBaselineY);
+    if (t < 1) waveAnimFrame = requestAnimationFrame(step);
+  }
+  waveAnimFrame = requestAnimationFrame(step);
+}
+
+function renderAffinity(pct, animate = true) {
+  const targetY = pctToBaselineY(pct);
+  if (animate) {
+    animateWaveTo(targetY);
+  } else {
+    currentBaselineY = targetY;
+    drawWaveAt(targetY);
+  }
+  affinityLevelEl.textContent = affinityLevelName(pct);
+  affinityPctEl.textContent = pct + "%";
+}
+
+let affinityToastTimer = null;
+function showAffinityToast(text) {
+  affinityToastEl.textContent = text;
+  affinityToastEl.classList.add("show");
+  clearTimeout(affinityToastTimer);
+  affinityToastTimer = setTimeout(() => affinityToastEl.classList.remove("show"), 1600);
+}
+
+function bumpAffinity(amount) {
+  const { after, levelUp } = addAffinity(amount);
+  renderAffinity(after);
+  if (levelUp) {
+    showAffinityToast(`なかよし度アップ!「${affinityLevelName(after)}」になったよ`);
+    sayIfOn(`なかよし度があがったよ!いまは${affinityLevelName(after)}だね!`);
+  } else {
+    showAffinityToast("なかよし度アップ!");
+  }
+}
+
+renderAffinity(getAffinity(), false);
+</script>
+<script>
+let effortCount=WEEK_DETAIL.at(-1).sessions.length;
+function revealStage(){
+ if(!document.querySelector('#childPhone').classList.contains('is-intro'))return;
+ document.querySelector('#childPhone').classList.remove('is-intro');
+ document.querySelector('#stage').classList.remove('is-collapsed');
+ if(!readRun('active'))sayIfOn('やあ！いっしょに がんばろう！');
+}
+tetemaru.addEventListener('pal-reveal',revealStage,{once:true});
+setTimeout(revealStage,4000);
+if(readRun('active'))startLock(true);
+function updateEffort(){
+ const count=effortCount;
+ const tile=document.querySelector('.sat-tr');
+ tile.querySelector('.sat-value').textContent=count+'かい';
+ tile.setAttribute('aria-label','きょうの がくしゅう '+count+'かい');
+}
+updateEffort();
+</script></body>
+</html>
