@@ -17,8 +17,8 @@ if(route.startsWith('demo')){
   else if(route.startsWith('demo-record')){
     page='study-log.html?role=parent&mode=demo';
     const match=/^demo-record-(\d+)$/.exec(route);
-    const {records}=await import('./demo.js');
-    const record=match && records[Number(match[1])];
+    const {exampleDays}=await import('./demo-topics.js');
+    const record=match && exampleDays[Number(match[1])];
     if(record){
       const {dateAt}=await import('./store.js');
       const day=new Date();

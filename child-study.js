@@ -1,267 +1,374 @@
-import {family,dateAt,newId} from './store.js';
-import {clearParentAccess,demoHints,demoQuestion} from './zip-records.js';
+import {family,dateAt,newId,verifyParentPin} from './store.js';
+import {clearParentAccess,demoTimerKey} from './zip-records.js';
+import {topics,demoLogKey,demoStateKey,readDemo,completedDemoSessions} from './demo-topics.js';
 import {mountChildUI} from './child-ui.js';
+import {decorateSheet} from './vendor/interaction.js';
+import {waveAffinity} from './affinity.js';
 
 const $=id=>document.getElementById(id);
 const demo=new URLSearchParams(location.search).get('mode')==='demo';
-if(demo) document.querySelector('.child-topbar a').href='trial.html?mode=demo';
-const demoKey='tetemaru.demo.v1',demoPrefs='tetemaru.demo.child-prefs';
+const demoPrefs='tetemaru.demo.child-prefs';
 const subjects=[['算数','さんすう'],['国語','こくご'],['英語','えいご'],['理科','りか'],['社会','しゃかい'],['そのほか','そのほか']];
-const goals=[['10分だけ','10ぷん'],['5分だけ','5ふん'],['まず1問','まず1もん'],['1ページ','1ページ']];
+const goals=[['5分だけ','5ふん',5],['10分だけ','10ぷん',10],['15分','15ふん',15],['20分','20ぷん',20],['30分','30ぷん',30],['45分','45ふん',45]];
+const goalMinutes=new Map(goals.map(([key,,minutes])=>[key,minutes]));
 const text=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const button=(id,label,primary=false)=>'<button type="button" id="'+id+'" class="flow-'+(primary?'primary':'secondary')+'">'+label+'</button>';
+const icon=name=>'<span data-icon="'+name+'" aria-hidden="true"></span>';
 const closeButton='<button type="button" class="flow-secondary" data-close>もどる</button>';
-const submitButton=label=>'<button class="flow-primary" type="submit">'+label+'</button>';
-const labelField=(label,key,value='',required=false)=>'<label>'+label+'<textarea name="'+key+'" maxlength="1000" '+(required?'required':'')+'>'+text(value)+'</textarea></label>';
-const dialog=$('flow'),sheetBody=$('flowContent'),overlay=$('lockOverlay');
-let f,ui,prefs,state,shown='',busy=false,runId='',tickFrom=0,holdTimer=0,tail=Promise.resolve();
-function readDemo(key){try{return JSON.parse(localStorage.getItem(key))||{}}catch{return {}}}
-function saveDemo(){localStorage.setItem(demoKey,JSON.stringify(state))}
-function fail(){ui?.setSpeech('うまく ほぞんできなかったよ。もういちど ためしてね。',{voice:false,keep:true});if(dialog.open){$('sheetError').textContent='ほぞんできませんでした。もういちど ためしてね。'}}
-function change(fn){
- const task=tail.then(async()=>{f=await family(fn)});
- tail=task.catch(fail);
- return task;
+const dialog=$('flow'),body=$('flowContent'),overlay=$('lockOverlay');
+let profile,prefs,ui,channel,busy=false,pendingRefresh=false;
+let lastAffinity=null;
+
+async function ensureAffinityStart(){
+ if(!profile.childPrefs?.affinityStartDay&&(demo||profile.paired)){
+  await load(v=>{
+   if(!demo&&!v.paired)return false;
+   const child=v.childPrefs??={};
+   child.affinityStartDay??=dateAt();
+  });
+ }
 }
-function changeRun(fn){
- const id=runId;
- return change(v=>v.active?.id===id&&id?fn(v.active,v):false);
+
+function updateAffinity(){
+ const child=profile.childPrefs||{},today=dateAt();
+ const seed=Number(child.affinity??15);
+ const studyDays=profile.history.map(row=>row.affinityDay).filter(Boolean);
+ const value=waveAffinity(Number.isFinite(seed)?seed:15,child.affinityStartDay||today,studyDays,today);
+ if(lastAffinity===value)return;
+ const gained=lastAffinity!==null&&value>lastAffinity;
+ ui.renderAffinity(value,lastAffinity!==null);
+ if(gained&&studyDays.includes(today))ui.celebrateStudy();
+ lastAffinity=value;
 }
-function openSheet(name,title,body){
- shown=name;
- if(!demo&&runId&&['ask','finish'].includes(name)&&f.active?.sheet!==name)changeRun(s=>{s.sheet=name}).catch(()=>{});
- sheetBody.innerHTML='<h2 id="sheetTitle">'+text(title)+'</h2>'+body+'<p id="sheetError" role="alert"></p>';
- if(!dialog.open)dialog.showModal();
+
+function loadedDemo(){
+ const active=readDemo(demoTimerKey),quiz=readDemo(demoStateKey);
+ return {name:'ゆい',nick:'ゆい',paired:true,active:active.id?active:null,quiz:quiz.id?quiz:null,
+  history:completedDemoSessions(),childPrefs:readDemo(demoPrefs),preferences:readDemo('tetemaru.demo.parent-prefs')};
 }
-function closeSheet(){if(dialog.open)dialog.close();shown=''}
-function modalSubmit(fn){
- const form=sheetBody.querySelector('form');
- form.onsubmit=async e=>{
-  e.preventDefault();if(busy)return;
-  const data=Object.fromEntries([...new FormData(form)].map(([k,v])=>[k,String(v).trim()]));
-  if([...form.elements].some(el=>el.required&&!el.value.trim())){$('sheetError').textContent='もじを いれてね。';return}
+
+// Serialize demo read/modify/write across tabs when browser locks are available.
+// The family store already runs its changes inside an IndexedDB transaction.
+async function load(change){
+ if(!demo){profile=await family(change);if(change)channel?.postMessage('refresh');return}
+ const update=()=>{
+  const value=loadedDemo();
+  if(change){
+   // Commit completed records before removing a run. Retrying a partially
+   // failed save uses the same run ID and cannot append the record twice.
+   const fields={history:demoLogKey,active:demoTimerKey,quiz:demoStateKey,childPrefs:demoPrefs};
+   const before=Object.fromEntries(Object.keys(fields).map(k=>[k,JSON.stringify(value[k])]));
+   if(change(value)!==false){
+    for(const [k,key] of Object.entries(fields)){
+     const next=JSON.stringify(value[k]);
+     if(next===before[k])continue;
+     if(value[k]===null)localStorage.removeItem(key);else localStorage.setItem(key,next);
+    }
+   }
+  }
+  profile=value;
+ };
+ if(change&&navigator.locks)await navigator.locks.request('tetemaru.demo.study',update);else update();
+}
+function transact(fn){
+ return async(...args)=>{
+  if(busy)return;
   busy=true;
-  try{await fn(data)}catch{fail()}finally{busy=false}
+  try{await fn(...args)}catch{
+   const msg='ほぞんできなかったよ。もういちど ためしてね。';
+   if(dialog.open&&$('sheetError'))$('sheetError').textContent=msg;else ui?.setSpeech(msg,{voice:false,keep:true});
+  }finally{busy=false;if(pendingRefresh)await refresh()}
  };
 }
-function bind(id,fn){$(id).onclick=async()=>{if(busy)return;busy=true;try{await fn()}catch{fail()}finally{busy=false}}}
-function greeting(){
- if(demo)return 'ゆい、きょうは わり算を いっしょに やろう！';
- if(!f.paired||!f.name)return 'はじめは、おうちのひとと いっしょに きてね。';
- return f.nick?f.nick+'、きょうも いっしょに がんばろう！':'なんて よんでほしい？';
+function openSheet(name,title,html){
+ const opening=!dialog.open;
+ body.dataset.sheet=name;
+ body.innerHTML='<h2 id="sheetTitle" tabindex="-1">'+text(title)+'</h2>'+html+'<p id="sheetError" role="alert"></p>';
+ if(opening)dialog.showModal();
+ const focus=body.querySelector('input')||body.querySelector('[data-reply]')||$('sheetTitle');
+ focus.focus({preventScroll:true});dialog.scrollTop=0;
+ decorateSheet(body,name,opening);
+}
+function closeSheet(){if(dialog.open)dialog.close()}
+function formSubmit(fn){
+ body.querySelector('form').onsubmit=e=>{
+  e.preventDefault();
+  const form=e.currentTarget;
+  transact(()=>fn(new FormData(form)))();
+ };
+}
+function preferredGoal(subject){
+ const saved=prefs.goalsBySubject?.[subject];
+ return goalMinutes.has(saved)?saved:(subject==='英語'?'20分':'10分だけ');
+}
+function elapsed(run,now=Date.now()){
+ return (run.ms||0)+(run.status==='active'&&Number.isFinite(run.since)?Math.max(0,now-run.since):0);
 }
 function progress(){
- const run=demo?null:f?.active;
- const ms=demo?(state.ms||0)+(state.started&&!state.paused?Date.now()-state.since:0):
-  (run?.ms||0)+(tickFrom?Math.max(0,Date.now()-Math.max(tickFrom,run?.countedUntil||0)):0);
- const seconds=Math.floor(Math.max(0,ms)/1000);
+ const run=profile?.active;
+ if(!run)return;
+ const seconds=Math.floor(elapsed(run)/1000);
  $('timer').textContent=[Math.floor(seconds/60),seconds%60].map(n=>String(n).padStart(2,'0')).join(':');
- const goal=run?.goal||'10分だけ';
- const minutes=goal==='5分だけ'?5:goal==='10分だけ'?10:0;
- const track=$('lockProgressFill').parentElement;
- track.hidden=!minutes;
+ const minutes=goalMinutes.get(run.goal);
+ $('lockProgressFill').parentElement.hidden=!minutes;
  if(minutes)$('lockProgressFill').style.width=Math.min(100,seconds/(minutes*60)*100)+'%';
 }
-function collectTime(stop=false){
- const start=tickFrom,end=Date.now();
- tickFrom=stop?0:(start?end:0);
- if(!start||end<=start||!runId)return tail;
- return changeRun(run=>{
-  if(run.status!=='active')return false;
-  run.ms+=Math.max(0,end-Math.max(start,run.countedUntil||0));
-  run.countedUntil=Math.max(end,run.countedUntil||0);
- });
-}
 function paint(){
- const active=demo?state.started&&state.step!=='done':f.active;
- runId=demo?'':f.active?.id||'';
- const paused=demo?state.paused:f.active?.status==='paused';
- if(!demo)tickFrom=active&&!paused&&!document.hidden?(tickFrom||Date.now()):0;
- overlay.classList.toggle('hidden',!active);
- const lock=Boolean(active);
- document.querySelector('main').inert=lock;
- document.querySelector('.tabbar').inert=lock;
- document.querySelector('.child-topbar').inert=lock;
- const ready=demo||f.paired&&f.name&&f.nick;
- $('startBtn').disabled=false;
- $('subject').disabled=!ready||demo||lock;
- $('goal').disabled=!ready||demo||lock;
- $('startLabel').textContent=demo&&state.step&&state.step!=='done'&&!state.started?'もんだいの つづき':ready?'はじめる':f.name?'よびかたを きめる':'いりぐちに もどる';
+ updateAffinity();
+ const run=profile.active,locked=Boolean(run);
+ overlay.classList.toggle('hidden',!locked);
+ for(const selector of ['main','.tabbar','.child-topbar'])document.querySelector(selector).inert=locked;
+ const ready=profile.paired&&profile.name&&profile.nick;
+ $('subject').disabled=$('goal').disabled=!ready||locked;
+ $('startBtn').disabled=false;$('quizBtn').disabled=!ready||locked;
+ $('startLabel').textContent=ready?'勉強モード（タイマー）':profile.name?'よびかたを きめる':'いりぐちに もどる';
  $('nicknameBtn').hidden=demo||!ready;
- $('continueBtn').hidden=demo||!ready||!f.history.length;
- if(!$('continueBtn').hidden){
-  const plan=f.history.at(-1).next||f.history.at(-1).material;
-  $('continueBtn').textContent='このまえの つづきから：'+(plan.length>28?plan.slice(0,28)+'…':plan);
- }
- const count=demo?(state.step==='done'?1:0):f.history.filter(s=>s.date===dateAt()).length;
+ const count=profile.history.filter(s=>s.date===dateAt()).length;
  const tile=document.querySelector('.sat-tr');
  tile.querySelector('.sat-value').textContent=count+'かい';
  tile.setAttribute('aria-label','きょうの がくしゅう '+count+'かい');
- if(active){
-  $('lockGoalLabel').textContent=demo?'さんすう ／ あまりのある わり算':f.active.subject+' ／ '+f.active.material+' ／ '+f.active.goal;
-  document.querySelector('.lock-sub').textContent=(!demo&&f.active.plan)?'このまえの つづき：'+f.active.plan:'この画面で ててまると いっしょに おべんきょうしよう';
-  document.querySelector('.lock-title').textContent=paused?'ひとやすみ中':'がくしゅうロック中';
-  $('askLabel').textContent=demo?'長いすの もんだい':'ててまるに きく';
-  $('pauseLabel').textContent=paused?'つづきに もどる':'ひとやすみ';
+ if(locked){
+  $('subject').value=run.subject;
+  if(goalMinutes.has(run.goal))$('goal').value=run.goal;
+  $('lockGoalLabel').textContent=[run.subject,run.goal].filter(Boolean).join(' ／ ');
+  const paused=run.status==='paused';
+  document.querySelector('.lock-title').textContent=paused?'タイマーを とめています':'勉強モード';
+  document.querySelector('.lock-sub').textContent=paused?'つづけるときは「さいかい」を おしてね。':'べんきょうした じかんを はかっています。';
+  $('pauseLabel').textContent=paused?'さいかい':'いちじていし';
   progress();
  }
- ui.setGreeting(greeting());
+ ui.setGreeting(ready?profile.nick+'、きょうは なにを やってみる？':profile.name?'なんて よんでほしい？':'はじめは、おうちのひとと いっしょに きてね。');
 }
 function nickname(){
- openSheet('nickname','なんて よんでほしい？','<form><label>よんでほしい なまえ<input name="nick" maxlength="80" required value="'+text(f.nick)+'"></label>'+submitButton('この なまえに する')+closeButton+'</form>');
- modalSubmit(async d=>{await change(v=>{if(!v.name||!v.paired)return false;v.nick=d.nick});closeSheet();paint()});
-}
-async function begin(material,plan=''){
- const subject=$('subject').value,goal=$('goal').value;
- await change(v=>{
-  if(v.active||!v.paired||!v.name||!v.nick)return false;
-  v.active={id:newId(),date:dateAt(),startedAt:Date.now(),subject,material,goal,plan,ms:0,status:'active',questions:[],breaks:[],insight:'',draft:'',done:'',next:''};
+ openSheet('nickname','なんて よんでほしい？','<form><label>よんでほしい なまえ<input name="nick" maxlength="80" required value="'+text(profile.nick)+'"></label><button class="flow-primary">この なまえに する</button>'+closeButton+'</form>');
+ formSubmit(async data=>{
+  const nick=data.get('nick').trim();
+  if(!nick){$('sheetError').textContent='なまえを いれてね。';return}
+  await load(v=>{if(v.paired&&v.name)v.nick=nick});closeSheet();paint();
  });
- closeSheet();paint();ui.bumpAffinity(3);
- if(plan)ui.setSpeech('つづきから はじめよう！');
 }
-function start(){
- if(demo){if(state.step==='done')state={};state.started=true;state.paused=false;state.since=Date.now();saveDemo();paint();demoProblem();return}
- if(!f.paired||!f.name){location.assign('trial.html');return}
- if(!f.nick){nickname();return}
- const prev=f.history.at(-1);
- openSheet('start','なにを つかう？','<form><p>'+text($('subject').selectedOptions[0].text+' ／ '+$('goal').selectedOptions[0].text)+'</p><label>ドリルや プリント<input name="material" maxlength="80" required placeholder="れい：さんすうドリル" value="'+text(prev?.subject===$('subject').value?prev.material:'')+'"></label>'+submitButton('おべんきょうを はじめる')+closeButton+'</form>');
- modalSubmit(d=>begin(d.material));
+function startRecord(kind,subject,goal,material=''){
+ const now=Date.now();
+ return {id:newId(),kind,date:dateAt(),startedAt:now,since:now,subject,goal,material,status:'active',ms:0,
+  breaks:[],questions:[],done:'',insight:'',next:''};
 }
-function hints(run,question){
- const low=f.grade<=2;
- const first={
-  '算数':/あまり|わり算/.test(question)?'あまった分は、どこにいくのかな？':'わかっている 数に まるを つけよう。',
-  '国語':'たいせつな ことばに 線を ひこう。',
-  '理科':'かわった ところを 一つ さがしてみよう。',
-  '社会':'地図や 写真に 手がかりは あるかな？',
-  '英語':low?'えを みて、しっている ことばを さがそう。':'知っている単語を一つ見つけてみよう。'
- }[run.subject]||'わかる ところを 一つ 見つけてみよう。';
- return [first,low?'えに かいたら、どうなるかな？':'わかることと、知りたいことを分けて書けるかな？',low?'わかったことを おしえて。':'自分の言葉で、ここまでの考えを説明してみよう。'];
+function stopTime(run,now){
+ run.ms=elapsed(run,now);
+ if(run.status==='paused'){
+  const rest=run.breaks?.at(-1);if(rest&&!rest.endedAt)rest.endedAt=now;
+ }
+ run.since=null;
 }
-function questions(){
- const run=f.active;if(!run)return;
- const records=run.questions.map(q=>'<div><strong>'+text(q.text)+'</strong>'+q.hints.map(h=>'<p>'+text(h)+'</p>').join('')+'</div>').join('');
- const last=run.questions.at(-1);
- openSheet('ask','ててまるに きこう',records+(last&&last.hints.length<3?button('nextHint','つぎの ヒント'):'')+
-  '<form>'+labelField('ききたいこと','question',run.draft,true)+submitButton('ててまるに きく')+'</form>'+
-  labelField('わかったこと','insight',run.insight)+closeButton);
- if($('nextHint'))bind('nextHint',async()=>{await changeRun(s=>{const q=s.questions.at(-1);if(q&&q.hints.length<3)q.hints.push(hints(s,q.text)[q.hints.length])});questions()});
- modalSubmit(async d=>{await changeRun(s=>{s.questions.push({text:d.question,hints:[hints(s,d.question)[0]]});s.draft=''});questions()});
+async function start(){
+ await load();
+ if(!profile.paired||!profile.name){location.assign('trial.html');return}
+ if(!profile.nick){nickname();return}
+ if(profile.active){paint();return}
+ await load(v=>{
+  if(v.active||!v.paired||!v.nick||(!demo&&!v.pin))return false;
+  if(v.quiz?.started){
+   v.quiz.ms=quizElapsed(v.quiz);v.quiz.started=false;v.quiz.paused=false;
+   const br=v.quiz.breaks?.at(-1);if(br&&!br.endedAt)br.endedAt=Date.now();
+  }
+  v.active=startRecord('timer',$('subject').value,$('goal').value);
+ });
+ if(!demo&&!profile.active&&!profile.pin){location.assign('parent.html?panel=timer-pin');return}
+ closeSheet();paint();
 }
-async function pause(){
- if(demo){demoUpdate(state.paused?'resume':'pause');return}
- await collectTime(true);
- await changeRun(s=>{if(s.status!=='paused'){s.status='paused';(s.breaks??=[]).push({startedAt:Date.now(),endedAt:null})}});
+async function pauseTimer(){
+ const id=profile.active?.id;
+ await load(v=>{
+  const run=v.active;if(!id||run?.id!==id)return false;
+  const now=Date.now(),paused=run.status==='paused';
+  stopTime(run,now);
+  if(paused){run.status='active';run.since=now}
+  else{run.status='paused';(run.breaks??=[]).push({startedAt:now,endedAt:null})}
+ });
  paint();
- openSheet('pause','ちょっと ひとやすみ。','<p id="restSpeech" role="status">ゆっくり のびを しよう。</p>'+button('restHug','ぎゅっと する')+button('resumeStudy','つづきに もどる',true));
- bind('restHug',()=>{overlay.querySelector('plush-pal')?.playMotion?.('hug');$('restSpeech').textContent='ぎゅっ。いっしょに やすもう。';ui.bumpAffinity(2)});
- bind('resumeStudy',resume);
 }
-async function resume(){await changeRun(s=>{s.status='active';const br=s.breaks?.at(-1);if(br&&!br.endedAt)br.endedAt=Date.now()});closeSheet();paint()}
-function finish(){
- if(demo){
-  if(!state.paused)state.ms=(state.ms||0)+Math.max(0,Date.now()-state.since);
-  state.started=false;state.paused=false;saveDemo();closeSheet();paint();return;
+async function unlock(){
+ await load();const id=profile.active?.id;
+ if(!id){closeSheet();paint();return}
+ if(!demo&&!profile.pin){
+  openSheet('unlock','パスワードの設定','<p>保護者の方が、タイマーを終えるためのパスワードを設定してください。</p><a class="flow-primary" href="parent.html?panel=timer-pin">保護者の設定へ</a>'+closeButton);return;
  }
- const run=f.active;
- if(!run)return;
- openSheet('finish','きょう、何が できた？','<form>'+labelField('できたこと','done',run.done,true)+labelField('つぎに やりたいこと','next',run.next)+submitButton('きろくして おわる')+closeButton+'</form>');
- modalSubmit(async d=>{
-  await collectTime(true);
-  await changeRun((s,v)=>{Object.assign(s,d,{status:'completed',endedAt:Date.now()});const br=s.breaks?.at(-1);if(br&&!br.endedAt)br.endedAt=s.endedAt;v.history.push(s);v.active=null});
-  closeSheet();paint();$('mainPal').playMotion?.('happy');ui.setSpeech(f.nick+'、よくがんばったね！');ui.bumpAffinity(8);
+ const field=demo?'':' inputmode="numeric" pattern="[0-9]{4}" maxlength="4"';
+ const help=demo?'<p>デモでは、好きな文字を1文字以上入れると解除できます。</p>':'<p>保護者用の4桁の暗証番号を入力してください。</p>';
+ openSheet('unlock','タイマーを おわる',help+'<form><label>パスワード<input type="password" name="code" autocomplete="off" required'+field+'></label><button type="submit" class="flow-primary">解除して記録する</button>'+closeButton+'</form>');
+ formSubmit(async data=>{
+  const code=String(data.get('code')??'');
+  if(!code.length)return;
+  await load();const pin=profile.pin;
+  if(profile.active?.id!==id){closeSheet();paint();return}
+  if(!demo&&(!pin||!await verifyParentPin(code,pin))){
+   $('sheetError').textContent='パスワードを確認してください。';return;
+  }
+  await load(v=>{
+   const run=v.active;if(run?.id!==id||(!demo&&v.pin!==pin))return false;
+   const now=Date.now();stopTime(run,now);run.status='completed';run.endedAt=now;
+   if(run.ms>=60000)run.affinityDay=dateAt(new Date(now));
+   if(!v.history.some(s=>s.id===id))v.history.push(run);
+   v.active=null;
+  });
+  if(profile.active?.id===id){$('sheetError').textContent='パスワードが変更されました。もう一度入力してください。';return}
+  closeSheet();paint();ui.setSpeech('がんばった じかんを きろくしたよ。');
  });
 }
-const demoButton=(key,label)=>'<button type="button" class="flow-secondary" data-demo="'+key+'">'+label+'</button>';
-function demoProblem(){
- let title='長いすの もんだい',body='<p>23人が長いすにすわります。1脚に4人までなら、みんなですわるには何脚いるかな？</p>';
- if(state.paused){
-  title='ちょっと ひとやすみ。';body='<p>'+ (state.hugged?'ぎゅーっ。ゆい、あったかいね！':'ゆい、のびを しよう。')+'</p>'+demoButton('hug','ててまるを ハグする')+demoButton('resume','もんだいに もどる');
- }else if(state.step==='done'){
-  title='ゆい、できたね！';body='<p>もう1脚あればいいから、全部で6脚！</p><a class="flow-primary" href="parent.html?mode=demo">保護者の記録を見る</a>'+closeButton;
+function quizElapsed(q){
+ return (q.ms||0)+(q.started&&!q.paused?Math.max(0,Date.now()-q.since):0);
+}
+function quizButton(key,label,primary=false,iconName=''){
+ return '<button type="button" class="flow-'+(primary?'primary':'secondary')+'" data-demo="'+key+'">'+(iconName?icon(iconName):'')+text(label)+'</button>';
+}
+function replyBubble(message){
+ return '<div class="chat-reply" data-reply tabindex="-1" role="status"><img src="./friend-front.png" alt="ててまる" width="40" height="40"><p>'+text(message)+'</p></div>';
+}
+async function pickTopic(){
+ await load();if(profile.active){closeSheet();paint();return}
+ if(!profile.paired||!profile.nick)return;
+ const subject=$('subject').value;
+ const existing=profile.quiz;
+ const topic=topics.find(t=>t.id===existing?.topicId);
+ const resume=existing&&existing.step!=='done'&&topic?.subject===subject?quizButton('continue','「'+topic.title+'」のつづき',true):'';
+ const choices=topics.filter(t=>t.subject===subject).map(t=>'<button type="button" class="flow-secondary" data-topic="'+text(t.id)+'">'+text(t.title)+'</button>').join('');
+ openSheet('topics','どの もんだいに する？','<p>'+text(subject)+' ／ 問題モード</p>'+resume+choices+closeButton);
+}
+async function beginTopic(id){
+ const topic=topics.find(t=>t.id===id&&t.subject===$('subject').value);
+ if(!topic)return;
+ await load(v=>{
+  if(v.active||!v.paired||!v.nick)return false;
+  v.quiz={...startRecord('quiz',topic.subject,'まず1問',topic.title),topicId:id,step:'problem',seenHints:0,hint:0,started:true,paused:false};
+ });
+ if(profile.active){closeSheet();paint();return}
+ if(profile.quiz?.topicId===id)showQuestion();
+}
+function showQuestion(){
+ const q=profile.quiz,topic=topics.find(t=>t.id===q?.topicId);
+ if(!topic){closeSheet();return}
+ let title=topic.title,html='';
+ if(q.paused){
+  title='ちょっと ひとやすみ。';html=replyBubble(q.hugged?'ぎゅーっ。あったかいね！':'いっしょに のびを しよう。')+quizButton('hug','ててまるを ハグする')+quizButton('resume','もんだいに もどる',true,'play');
+ }else if(q.step==='done'){
+  title=profile.nick+'、できたね！';html=replyBubble(topic.explanation)+quizButton('choose','ほかの もんだいを えらぶ',true);
  }else{
-  body+='<p>ゆい「'+text(demoQuestion)+'」</p>';
-  if(state.step==='answer')body+='<p>いすは 何脚かな？</p>'+[5,6,7].map(n=>demoButton(n,n+'脚')).join('')+'<p role="status">'+text(state.feedback||'')+'</p>'+demoButton('ask','ヒントをもういちど');
-  else if(state.step==='hint')body+='<p role="status">'+text(demoHints[state.hint===1?1:0])+'</p>'+demoButton(state.hint?'ask':'hint',state.hint?'まえのヒント':'つぎのヒント')+demoButton('answer','こたえてみる');
-  else body+=demoButton('ask','ててまるに きいてみる');
-  body+=demoButton('pause','ちょっと やすむ')+'<a class="flow-secondary" href="parent.html?mode=demo">保護者の記録を見る</a>'+closeButton;
+  html='<p class="chat-problem">'+text(topic.prompt)+'</p><div class="chat-child"><span>'+text(profile.nick)+'</span><p>'+text(topic.question)+'</p></div>';
+  if(q.step==='answer')html+=replyBubble(q.feedback||'こたえを えらんでみよう。')+'<div class="chat-choices">'+topic.options.map((o,i)=>quizButton('option-'+i,o)).join('')+'</div>'+quizButton('ask','ヒントをみる',false,'lightbulb');
+  else if(q.step==='hint')html+=replyBubble(topic.hints[q.hint])+quizButton(q.hint?'ask':'hint',q.hint?'まえのヒント':'つぎのヒント',false,'lightbulb')+quizButton('answer','こたえてみる',true,'send');
+  else html+=quizButton('ask','ててまるに きいてみる',true,'message-circle')+quizButton('answer','こたえてみる',false,'send');
+  html+=quizButton('pause','ちょっと やすむ',false,'pause')+quizButton('choose','もんだいを えらびなおす');
  }
- openSheet('demo',title,body);
+ html+='<div class="chat-footer"><a href="parent.html'+(demo?'?mode=demo':'')+'">保護者の記録を見る</a>'+closeButton+'</div>';
+ openSheet('quiz',title,html);
 }
-function demoUpdate(key){
- if(key==='pause'){state.ms=(state.ms||0)+Math.max(0,Date.now()-state.since);state.paused=true;state.hugged=false}
- if(key==='resume'){state.paused=false;state.since=Date.now()}
- if(key==='hug'){state.hugged=true;overlay.querySelector('plush-pal')?.playMotion?.('hug')}
- if(key==='hint'||key==='ask'){state.step='hint';state.hint=key==='hint'?1:0}
- if(key==='answer'){state.step='answer';state.feedback=''}
- if(key==='5'||key==='7')state.feedback=key==='5'?'5脚なら20人。のこりの3人のぶんも考えよう。':'長いすを1脚ずつ、絵にかいてみよう。';
- if(key==='6'){state.step='done';state.started=false;state.paused=false;$('mainPal').playMotion?.('happy')}
- saveDemo();paint();demoProblem();
+async function quizAction(key){
+ const id=profile.quiz?.id;
+ if(!id)return;
+ await load(v=>{
+  const q=v.quiz,topic=topics.find(t=>t.id===q?.topicId);
+  if(v.active||!topic||q.id!==id)return false;
+  const now=Date.now();
+  if(['choose','leave'].includes(key)){
+   q.ms=quizElapsed(q);q.started=false;q.paused=false;const br=q.breaks?.at(-1);if(br&&!br.endedAt)br.endedAt=now;
+  }else if(key==='continue'&&q.step!=='done'){
+   if(!q.started||q.paused){q.since=now;q.started=true;q.paused=false;const br=q.breaks?.at(-1);if(br&&!br.endedAt)br.endedAt=now}
+  }else if(!q.started)return false;
+  else if(key==='pause'&&!q.paused){q.ms=quizElapsed(q);q.paused=true;q.hugged=false;q.breaks.push({startedAt:now,endedAt:null})}
+  else if(key==='resume'&&q.paused){q.paused=false;q.since=now;const br=q.breaks.at(-1);if(br)br.endedAt=now}
+  else if(key==='hug')q.hugged=true;
+  else if(key==='hint'||key==='ask'){q.step='hint';q.hint=key==='hint'?1:0;q.seenHints=Math.max(q.seenHints||0,q.hint+1)}
+  else if(key==='answer'){q.step='answer';q.feedback=''}
+  else if(key.startsWith('option-')&&q.step==='answer'){
+   if(Number(key.slice(7))!==topic.answer)q.feedback='おしい！ もういちど 考えてみよう。';
+   else{
+    q.ms=quizElapsed(q);q.started=false;q.step='done';
+    if(!v.history.some(s=>s.id===q.id))v.history.push({id:q.id,kind:'quiz',date:dateAt(),affinityDay:dateAt(new Date(now)),startedAt:q.startedAt,endedAt:now,
+     status:'completed',subject:topic.subject,material:topic.title,goal:'まず1問',ms:q.ms,breaks:q.breaks,
+     questions:[{text:topic.question,hints:topic.hints.slice(0,q.seenHints)}],done:topic.options[topic.answer],insight:topic.explanation,next:''});
+   }
+  }
+ });
+ if(profile.active||profile.quiz?.id!==id){closeSheet();paint();return}
+ if(key==='choose'||key==='leave'){closeSheet();paint();return}
+ if(key==='hug')$('mainPal').playMotion?.('hug');
+ if(profile.quiz.step==='done')$('mainPal').playMotion?.('happy');
+ showQuestion();paint();
 }
-function cancelHold(){clearInterval(holdTimer);holdTimer=0;$('unlockFill').style.width='0%';$('unlockLabel').textContent='ほごしゃは ここを 3びょう おしてください(かいじょ)'}
-function hold(e){
- if(holdTimer||overlay.classList.contains('hidden'))return;
- e.preventDefault();const start=performance.now();
- $('unlockLabel').textContent='そのまま おしつづけて…';
- holdTimer=setInterval(()=>{
-  const percent=Math.min(100,(performance.now()-start)/30);$('unlockFill').style.width=percent+'%';
-  if(percent>=100){cancelHold();finish()}
- },30);
+async function refresh(){
+ if(document.hidden)return;
+ if(busy){pendingRefresh=true;return}
+ pendingRefresh=false;
+ const old=profile.active?.id,quizId=profile.quiz?.id;
+ await load();
+ await ensureAffinityStart();
+ if(profile.active?.id!==old||quizId!==profile.quiz?.id)closeSheet();
+ paint();
 }
 async function init(){
- if(demo){state=readDemo(demoKey);prefs=readDemo(demoPrefs);prefs.sleep=readDemo('tetemaru.demo.parent-prefs').sleep===false?'off':'on';$('childLogLink').href='study-log.html?mode=demo&role=child';$('demoLabel').hidden=false;document.querySelector('.child-tab.active').href='child.html?mode=demo'}
- else{clearParentAccess();f=await family();prefs={...f.childPrefs,sleep:f.preferences?.sleep===false?'off':'on'}}
- ui=mountChildUI(prefs,(key,value)=>{
-  if(demo)localStorage.setItem(demoPrefs,JSON.stringify(prefs));
-  else change(v=>{(v.childPrefs??={})[key]=value}).catch(()=>{});
- });
- subjects.forEach(([v,l])=>$('subject').add(new Option(l,v)));goals.forEach(([v,l])=>$('goal').add(new Option(l,v)));
- const prior=demo?{}:f.active||f.history.at(-1)||{};
- $('subject').value=demo?'算数':(prefs.subject||prior.subject||'算数');
- $('goal').value=demo?'10分だけ':(prefs.goal||prior.goal||'10分だけ');
- for(const key of ['subject','goal'])$(key).onchange=()=>change(v=>{(v.childPrefs??={})[key]=$(key).value});
- bind('startBtn',start);bind('nicknameBtn',nickname);
- bind('continueBtn',()=>{const prev=f.history.at(-1);$('subject').value=prev.subject;$('goal').value=prev.goal;return begin(prev.material,prev.next)});
- bind('askBtn',()=>{if(demo)demoProblem();else questions()});
- bind('pauseBtn',()=>!demo&&f.active?.status==='paused'?resume():pause());
- $('unlockBtn').onpointerdown=hold;
- for(const e of ['pointerup','pointercancel','pointerleave','blur'])$('unlockBtn').addEventListener(e,cancelHold);
- $('unlockBtn').onkeydown=e=>{if(!e.repeat&&['Enter',' '].includes(e.key))hold(e)};
- $('unlockBtn').onkeyup=cancelHold;
- sheetBody.onclick=e=>{if(e.target.closest('[data-close]'))closeSheet();const b=e.target.closest('[data-demo]');if(b)demoUpdate(b.dataset.demo)};
- dialog.addEventListener('close',()=>{
-  if(dialog.open)return;
-  shown='';
-  if(!demo&&runId)changeRun(s=>{if(!s.sheet)return false;s.sheet=''}).catch(()=>{});
- });
- sheetBody.oninput=e=>{
-  if(demo)return;
-  const key={question:'draft',insight:'insight',done:'done',next:'next'}[e.target.name];
-  if(key){const value=e.target.value;changeRun(s=>{s[key]=value}).catch(()=>{})}
- };
- paint();
- if(!demo&&f.active?.status==='paused')await pause();
- else if(!demo&&f.active?.sheet==='ask')questions();
- else if(!demo&&f.active?.sheet==='finish')finish();
- else if(!demo&&!f.active&&f.paired&&f.name&&new URLSearchParams(location.search).get('panel')==='name'){
-  history.replaceState(null,'','child.html');nickname();
+ if(demo){
+  for(const link of document.querySelectorAll('.child-topbar a,.child-tab')){const url=new URL(link.href);url.searchParams.set('mode','demo');link.href=url.href}
+  $('demoLabel').hidden=false;
+ }else clearParentAccess();
+ await load();
+ await ensureAffinityStart();
+ if(profile.active&&profile.active.status==='active'&&!Number.isFinite(profile.active.since)){
+  // Older foreground-only timers already stored accrued milliseconds. Start the
+  // wall clock at migration so time closed under the old app is not added.
+  await load(v=>{if(v.active?.status==='active'&&!Number.isFinite(v.active.since))v.active.since=Date.now()});
  }
- if(demo&&state.started)demoProblem();
- setInterval(()=>{if(!overlay.classList.contains('hidden'))progress()},500);
- if(!demo){
-  setInterval(()=>{if(!document.hidden)collectTime()},3000);
-  document.addEventListener('visibilitychange',async()=>{
-   if(document.hidden){cancelHold();await collectTime(true)}else{await change(()=>false);paint();if(!f.active&&['ask','finish','pause'].includes(shown))closeSheet()}
+ prefs={...profile.childPrefs,sleep:profile.preferences?.sleep===false?'off':'on'};
+ ui=mountChildUI(prefs,(key,value)=>{load(v=>{(v.childPrefs??={})[key]=value}).catch(()=>{})});
+ subjects.forEach(([v,l])=>$('subject').add(new Option(l,v)));
+ goals.forEach(([v,l])=>$('goal').add(new Option(l,v)));
+ const prior=profile.history.filter(row=>row.kind!=='quiz').at(-1);
+ const subject=prefs.subject||prior?.subject||'算数';
+ if(!prefs.goalsBySubject){
+  prefs.goalsBySubject={};
+  const legacyGoal=prefs.goal||(prior?.subject===subject?prior.goal:null);
+  if(goalMinutes.has(legacyGoal)&&!(subject==='英語'&&legacyGoal==='10分だけ'))prefs.goalsBySubject[subject]=legacyGoal;
+ }
+ $('subject').value=profile.active?.subject||subject;
+ $('goal').value=preferredGoal($('subject').value);
+ async function saveChoice(explicitGoal){
+  const selected=$('subject').value;
+  if(!explicitGoal)$('goal').value=preferredGoal(selected);
+  const goal=$('goal').value;
+  if(explicitGoal)prefs.goalsBySubject[selected]=goal;
+  await load(v=>{
+   const child=v.childPrefs??={};child.subject=selected;child.goal=goal;
+   child.goalsBySubject??={...prefs.goalsBySubject};
+   if(explicitGoal)child.goalsBySubject[selected]=goal;
   });
-  window.addEventListener('pagehide',()=>collectTime(true));
+ }
+ $('subject').onchange=()=>saveChoice(false);$('goal').onchange=()=>saveChoice(true);
+ $('startBtn').onclick=transact(start);$('quizBtn').onclick=transact(pickTopic);
+ $('nicknameBtn').onclick=nickname;$('pauseBtn').onclick=transact(pauseTimer);$('unlockBtn').onclick=transact(unlock);
+ body.onclick=e=>{
+  const choice=e.target.closest('[data-topic]'),action=e.target.closest('[data-demo]');
+  if(choice)transact(()=>beginTopic(choice.dataset.topic))();
+  else if(action)transact(()=>quizAction(action.dataset.demo))();
+  else if(e.target.closest('[data-close]')){
+   if(body.dataset.sheet==='quiz')transact(()=>quizAction('leave'))();else closeSheet();
+  }
+ };
+ dialog.addEventListener('cancel',e=>{
+  if(body.dataset.sheet==='quiz'){e.preventDefault();transact(()=>quizAction('leave'))()}
+ });
+ paint();
+ if(!demo&&profile.paired&&profile.name&&!profile.active&&new URLSearchParams(location.search).get('panel')==='name')nickname();
+ if(!profile.active&&profile.quiz?.kind==='quiz'&&profile.quiz.started)showQuestion();
+ setInterval(progress,500);
+ function refreshAtMidnight(){
+  const next=new Date();next.setHours(24,0,0,0);
+  setTimeout(()=>{if(!document.hidden)updateAffinity();refreshAtMidnight()},Math.max(1,next.getTime()-Date.now()));
+ }
+ refreshAtMidnight();
+ document.addEventListener('visibilitychange',refresh);
+ if(demo)window.addEventListener('storage',refresh);
+ else if('BroadcastChannel' in window){
+  channel=new BroadcastChannel('tetemaru-study-refresh');
+  channel.onmessage=refresh;
+  window.addEventListener('pagehide',()=>{channel.close();channel=null},{once:true});
  }
 }
-window.addEventListener('pageshow',event=>{
- if(event.persisted){
-  if(!demo)clearParentAccess();
-  tickFrom=0;
-  location.reload();
- }
-});
-init().catch(()=>{$('speech').textContent='おうちの きろくを ひらけなかったよ。もういちど ひらいてね。';document.querySelector('#childPhone').classList.remove('is-intro')});
+window.addEventListener('pageshow',e=>{if(e.persisted){if(!demo)clearParentAccess();location.reload()}});
+init().catch(()=>{$('speech').textContent='きろくを ひらけなかったよ。もういちど ひらいてね。';$('childPhone').classList.remove('is-intro')});

@@ -87,10 +87,12 @@ function sessionRow(session) {
   icon.style.color = SUBJECT_COLORS[session.subject] || '#916273';
   const content = element('div','log-session-text');
   const title = element('span','log-session-title');
-  title.append(annotated(session.subject+' ／ '+session.material));
+  const name=session.kind==='timer'?'勉強タイマー':session.material;
+  title.append(annotated([session.subject,name].filter(Boolean).join(' ／ ')));
   content.append(title);
-  detail(content,'気づいたこと',session.insight);
-  if (session.done!==session.insight || !isDemo) detail(content,'できたこと',session.done);
+  const quiz=session.kind==='quiz'||(isDemo&&!session.kind);
+  detail(content,quiz?'こたえの説明':'気づいたこと',session.insight);
+  if (session.done!==session.insight || !quiz) detail(content,quiz?'えらんだこたえ':'できたこと',session.done);
   for (const question of session.questions || []) {
     detail(content,'質問',question.text);
     for (const hint of question.hints || []) detail(content,'ヒント',hint);
@@ -116,7 +118,7 @@ function dayCard(day, latest) {
   const date = element('span','log-date',day.date.replaceAll('-','/')+' ('+day.label+')');
   if (day.date===latest) date.append(element('span','log-date-today','さいしん'));
   const meta=element('span','log-meta');
-  meta.append(annotated('教材'),document.createTextNode(' '+day.sessions.length+'件'));
+  meta.append(annotated('学習'),document.createTextNode(' '+day.sessions.length+'件'));
   const breaks=day.breaks || [];
   if (breaks.length || (day.sessions.length && day.sessions.every(s=>Array.isArray(s.breaks)))) {
     meta.append(document.createTextNode('・'),annotated('休憩'),document.createTextNode(' '+breaks.length+'回'));
