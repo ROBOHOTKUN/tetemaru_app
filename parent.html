@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#FFFFFF">
+<title>ててまる 保護者ホーム</title>
+<link rel="stylesheet" href="styles.css">
+<script src="data.js"></script>
+</head>
+<body>
+<div class="phone">
+
+  <header class="header">
+    <div class="header-row header-top">
+      <div class="status-row">
+        <span class="status-dot" aria-hidden="true"></span>
+        <span class="status-text">ててまる</span>
+      </div>
+      <a class="switch-link pressable" id="toChild" href="child.html">
+        こども画面へ
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg>
+      </a>
+    </div>
+    <div class="header-row">
+      <div>
+        <h1 class="header-title kanji-text">保護者ホーム</h1>
+        <span class="header-sub">
+          <svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="7" width="18" height="12" rx="2"/><line x1="22" y1="11" x2="22" y2="15"/></svg>
+          <span id="parentSub">保護者の画面</span>
+        </span>
+      </div>
+      <div class="avatar" aria-hidden="true">
+        <img width="42" height="42" style="object-fit:contain" src="./friend-front.png" alt="">
+      </div>
+    </div>
+  </header>
+
+  <main id="parentGate" aria-live="polite" hidden></main>
+  <p class="setting-note" id="parentMessage" role="status" hidden></p>
+  <template id="parentDashboard">
+  <div class="level-picker-row">
+    <span class="level-picker-label">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7V4h16v3"/><path d="M9 20h6"/><path d="M12 4v16"/></svg>
+      かんじ レベル
+    </span>
+    <div class="level-picker" id="levelPicker">
+      <button class="level-btn" data-level="1">1年</button>
+      <button class="level-btn" data-level="2">2年</button>
+      <button class="level-btn active" data-level="3">3年</button>
+      <button class="level-btn" data-level="6">ぜんぶ</button>
+    </div>
+  </div>
+
+  <main class="content">
+
+    <!-- 今日の学習 -->
+    <section>
+      <h2 class="section-title kanji-text">今日の学習</h2>
+      <div class="section-body">
+        <div class="stat-row">
+          <div class="card stat-card">
+            <span class="stat-head">
+              <span class="stat-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2"/><path d="M9 2h6"/></svg></span>
+              <span class="stat-label kanji-text">学習時間</span>
+            </span>
+            <span class="stat-value"></span>
+          </div>
+          <div class="card stat-card">
+            <span class="stat-head">
+              <span class="stat-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></span>
+              <span class="stat-label kanji-text">学習した回数</span>
+            </span>
+            <span class="stat-value"></span>
+          </div>
+        </div>
+        <div class="card goal-row">
+          <div>
+            <div class="goal-label kanji-text">今日の目標</div>
+            <div class="goal-value kanji-text"></div>
+          </div>
+          <span class="badge badge-solid">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+            <span class="kanji-text"></span>
+          </span>
+        </div>
+      </div>
+    </section>
+
+    <!-- 直近7日のようす -->
+    <section>
+      <div class="chart-top-row">
+        <h2 class="section-title kanji-text">直近7日のようす</h2>
+        <span class="chart-total"><span class="kanji-text">合計</span> <strong id="weekTotal"></strong></span>
+      </div>
+      <div class="section-body">
+        <div class="card">
+          <div class="bars" id="bars"></div>
+          <div class="bar-labels" id="barLabels"></div>
+          <div class="legend" id="legend"></div>
+          <div class="detail-box">
+            <div class="detail-top">
+              <span class="detail-date" id="detailDate"></span>
+              <span class="detail-total" id="detailTotal"></span>
+            </div>
+            <div class="detail-rows" id="detailRows"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 質問・振り返り -->
+    <section>
+      <h2 class="section-title kanji-text">今日の質問・振り返り</h2>
+      <div class="section-body" id="questionList"></div>
+    </section>
+
+    <!-- 保護者設定 -->
+    <section>
+      <h2 class="section-title kanji-text">保護者設定</h2>
+      <div class="section-body">
+        <div class="card">
+          <div class="setting-row">
+            <label class="setting-label" for="sleep">
+              <span class="setting-label-top">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/></svg>
+                おやすみモード
+              </span>
+              <span class="setting-note">21:00〜7:00は声かけを控える</span>
+            </label>
+            <span class="switch">
+              <input id="sleep" type="checkbox" checked>
+              <span class="track"></span><span class="knob"></span>
+            </span>
+          </div>
+          <div class="setting-row">
+            <label class="setting-label" for="notif">
+              <span class="setting-label-top">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+                <span class="kanji-text">学習の通知</span>
+              </span>
+              <span class="setting-note">この画面に目標の達成を表示</span>
+            </label>
+            <span class="switch">
+              <input id="notif" type="checkbox" checked>
+              <span class="track"></span><span class="knob"></span>
+            </span>
+          </div>
+        </div>
+      </div>
+    </section>
+    <div class="section-body">
+      <button class="flow-secondary" id="settingsButton" type="button">家庭の設定</button>
+      <button class="flow-secondary" id="demoReset" type="button" hidden>デモを最初から</button>
+      <a class="more-link pressable" id="returnMenu" href="trial.html">入口に戻る</a>
+    </div>
+  </main>
+
+  <nav class="tabbar">
+    <a class="tab active" href="parent.html" aria-current="page">
+      <span class="tab-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9"/></svg></span>
+      ホーム
+    </a>
+    <a class="tab" id="logTab" href="study-log.html?role=parent">
+      <span class="tab-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="6" y1="20" x2="6" y2="12"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="18" y1="20" x2="18" y2="14"/></svg></span>
+      学習記録
+    </a>
+  </nav>
+  </template>
+  <dialog class="flow-sheet" id="parentDialog" aria-labelledby="sheetTitle">
+    <div class="flow-content" id="sheetContent"></div>
+    <p class="setting-note" role="status" id="sheetMessage"></p>
+    <button class="flow-secondary" id="dismissParentSheet" type="button">閉じる</button>
+  </dialog>
+</div>
+<script type="module" src="./parent-screen.js"></script>
+</body></html>

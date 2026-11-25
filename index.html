@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ててまる</title>
+<script type="module">
+const route=location.hash.slice(1);
+let page='trial.html';
+if(route.startsWith('child')) page='child.html';
+if(route.startsWith('parent')) page='parent.html';
+if(route==='child-name') page+='?panel=name';
+if(route==='parent-settings'||route==='parent-reset') page+='?panel=settings';
+if(route.startsWith('demo')){
+  if(route==='demo') page='trial.html?mode=demo';
+  else if(route==='demo-parent') page='parent.html?mode=demo';
+  else if(route==='demo-materials') page='study-log.html?role=parent&mode=demo&view=materials';
+  else if(route.startsWith('demo-record')){
+    page='study-log.html?role=parent&mode=demo';
+    const match=/^demo-record-(\d+)$/.exec(route);
+    const {records}=await import('./demo.js');
+    const record=match && records[Number(match[1])];
+    if(record){
+      const {dateAt}=await import('./store.js');
+      const day=new Date();
+      day.setDate(day.getDate()-record.daysAgo);
+      page+='#'+dateAt(day);
+    }
+  }
+  else if(route==='demo-reset') page='parent.html?mode=demo&panel=demo-reset';
+  else page='child.html?mode=demo';
+}
+location.replace(page);
+</script>
+<a href="trial.html">ててまるの入口を開く</a>
+</html>
