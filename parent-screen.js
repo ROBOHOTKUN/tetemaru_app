@@ -40,7 +40,7 @@ function gate(title,content){
   $('parentGate').className='content';
   $('parentGate').hidden=false;
   $('parentGate').innerHTML=`<section class="card flow-content"><h2 class="section-title">${title}</h2>${content}
-    <a class="more-link" href="trial.html">入口に戻る</a></section>`;
+    <a class="more-link" href="trial.html">保護者⇄こども 切り替え</a></section>`;
 }
 function clearScreen(){
   dashboard?.remove();
