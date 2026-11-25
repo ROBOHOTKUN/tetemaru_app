@@ -1,11 +1,10 @@
 import {dateAt} from './store.js';
-import {records, hints} from './demo.js';
+import {topics, exampleDays, completedDemoSessions} from './demo-topics.js';
 
-if('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(()=>{});
+if(!import.meta.env?.DEV && 'serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(()=>{});
 
 export const isDemo = new URLSearchParams(location.search).get('mode') === 'demo';
-export const demoQuestion = records[0].question;
-export const demoHints = hints;
+export const demoTimerKey = 'tetemaru.demo.timer.v1';
 const parentSession = 'tetemaru.family.parent-access';
 
 export function parentAllowed(f) {
@@ -35,13 +34,15 @@ function makeDay(date) {
   return {date,label,weekday:label+'曜日',sessions:[],breaks:[]};
 }
 function demoHistory() {
-  const history=records.map((r,i)=>({
-    id:'presentation-'+i, date:dayAgo(r.daysAgo), subject:r.subject, material:r.material,
-    ms:r.minutes*60000, goal:'まず1問', done:r.thought, insight:r.thought, next:r.next,
-    questions:[{text:r.question,hints:[r.hint]}]
-  }));
-  // Use the ZIP's example workbook sessions on the other four days of the chart.
+  const history=exampleDays.map(({id,daysAgo,minutes})=>{
+    const r=topics.find(t=>t.id===id);
+    return {id:'example-'+id,kind:'quiz',date:dayAgo(daysAgo),subject:r.subject,material:r.title,
+      ms:minutes*60000,goal:'まず1問',done:r.options[r.answer],insight:r.explanation,
+      questions:[{text:r.question,hints:[r.hints[0]]}]};
+  });
+  // Reserve today for the activities actually completed in this demo.
   const featured=new Set(history.map(s=>s.date));
+  featured.add(dayAgo(0));
   if(typeof WEEK_DETAIL!=='undefined') {
     WEEK_DETAIL.forEach((d,i)=>{
       const date=dayAgo(6-i);
@@ -52,7 +53,7 @@ function demoHistory() {
       }
     });
   }
-  return history;
+  return history.concat(completedDemoSessions());
 }
 export function getDays(history,{weekOnly=false}={}) {
   const days=new Map();

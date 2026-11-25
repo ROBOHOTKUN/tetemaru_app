@@ -41,3 +41,8 @@ export async function pinHash(pin,salt){
   const bits=await crypto.subtle.deriveBits({name:'PBKDF2',salt:new TextEncoder().encode(salt),iterations:120000,hash:'SHA-256'},key,256);
   return Array.from(new Uint8Array(bits),x=>x.toString(16).padStart(2,'0')).join('');
 }
+export async function verifyParentPin(code,storedPin){
+  const [salt,expected]=(storedPin||'').split('.');
+  if(!salt||!expected||!/^\d{4}$/.test(code))return false;
+  return await pinHash(code,salt)===expected;
+}

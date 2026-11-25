@@ -37,22 +37,25 @@
       <plush-pal data-motion="intro" class="tetemaru-btn" id="mainPal"></plush-pal>
 
       <!-- 左上: なかよし度 -->
-      <div class="satellite sat-tl" aria-label="ててまるとのなかよし度">
-      <svg class="affinity-heart" viewBox="0 0 24 24" width="40" height="40" aria-hidden="true">
+      <div id="affinityMeter" class="satellite sat-tl" role="meter" aria-label="ててまるとのなかよし度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="15">
+      <svg class="affinity-heart" viewBox="0 0 24 24" width="46" height="46" aria-hidden="true">
         <defs>
           <clipPath id="heartClip"><path d="M12 20C12 20 3 14 3 8.5 3 5 5.5 3 8.5 3 10.5 3 12 4.5 12 6 12 4.5 13.5 3 15.5 3 18.5 3 21 5 21 8.5 21 14 12 20 12 20Z"/></clipPath>
+          <linearGradient id="heartWater" x2="0" y2="1" gradientUnits="objectBoundingBox">
+            <stop stop-color="#ef8193"/><stop offset="1" stop-color="#c9435a"/>
+          </linearGradient>
         </defs>
         <path class="affinity-heart-bg" d="M12 20C12 20 3 14 3 8.5 3 5 5.5 3 8.5 3 10.5 3 12 4.5 12 6 12 4.5 13.5 3 15.5 3 18.5 3 21 5 21 8.5 21 14 12 20 12 20Z"/>
         <g clip-path="url(#heartClip)">
-          <g id="affinityWaveGroup" class="affinity-wave-group">
-            <path id="affinityWaveBack" class="affinity-wave affinity-wave-back" d=""></path>
-            <path id="affinityWaveFront" class="affinity-wave affinity-wave-front" d=""></path>
+          <g id="affinityWaveGroup" class="affinity-wave-group" style="transform:translateY(15px)">
+            <path class="affinity-wave-back" d="M-24 -1.3q3 -2.8 6 0t6 0t6 0t6 0t6 0t6 0t6 0t6 0t6 0t6 0t6 0t6 0v28h-72z"/>
+            <path class="affinity-wave-front" d="M-24 0q3 3.6 6 0t6 0t6 0t6 0t6 0t6 0t6 0t6 0t6 0t6 0t6 0t6 0v28h-72z"/>
           </g>
         </g>
         <path class="affinity-heart-line" d="M12 20C12 20 3 14 3 8.5 3 5 5.5 3 8.5 3 10.5 3 12 4.5 12 6 12 4.5 13.5 3 15.5 3 18.5 3 21 5 21 8.5 21 14 12 20 12 20Z"/>
       </svg>
         <span class="sat-value" id="affinityPct">15%</span>
-        <span class="sat-label" id="affinityLevel">はじめまして</span>
+        <span class="sat-label">なかよし度</span>
       </div>
 
       <!-- 右上: きょうのがんばり -->
@@ -125,21 +128,8 @@
     <div class="lock-progress-track"><div class="lock-progress-fill" id="lockProgressFill"></div></div>
     <div class="lock-goal-label" id="lockGoalLabel">もくひょう:さんすうを 10ぷん</div>
 
-    <div class="allowed-box">
-      <span class="allowed-title">つかえるもの</span>
-      <span class="allowed-item">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
-        ててまる(カメラ・AI・教材)
-      </span>
-      <span class="allowed-item">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-        学習タイマー
-      </span>
-    </div>
-
     <button class="unlock-btn" id="unlockBtn">
-      <span class="unlock-fill" id="unlockFill"></span>
-      <span id="unlockLabel">ほごしゃは ここを 3びょう おしてください(かいじょ)</span>
+      パスワードで おわる
     </button>
   </div>
 
@@ -159,55 +149,21 @@
   </nav>
 </div>
 
-<script>
-// ---- ててまる(3D)とセリフ ----
-const tetemaru = document.getElementById("mainPal");
-const speechEl = document.getElementById("speech");
-let speechTimer = null;
-function setSpeech(text, { voice = true, keep = false } = {}) {
-  speechEl.textContent = text;
-  speechEl.classList.remove("pop");
-  void speechEl.offsetWidth;
-  speechEl.classList.add("pop");
-  if (voice) sayIfOn(text);
-  clearTimeout(speechTimer);
-  if (!keep) speechTimer = setTimeout(() => { speechEl.textContent = "きょうも いっしょに がんばろう!"; }, 4000);
-}
-
-const TAP_LINES = ["わーい!", "くすぐったいよ〜", "えへへ、うれしいな!", "いっしょに あそぼ!"];
-let tapIndex = 0;
-tetemaru.addEventListener("pal-tap", () => {
-  setSpeech(TAP_LINES[tapIndex++ % TAP_LINES.length]);
-  bumpAffinity(1);
-});
-
-// ---- あたたかさ(下から出るシート) ----
-const heat = document.getElementById("heat");
-const heatLabel = document.getElementById("heatLabel");
-const heatSatValue = document.getElementById("heatSatValue");
-const heatSheet = document.getElementById("heatSheet");
-const heatSat = document.getElementById("heatSat");
-heat.value=readTrial("heat") || "36"; heatLabel.textContent=heatSatValue.textContent=heat.value+"ど";
-heat.addEventListener("input", () => {
-  writeTrial("heat",heat.value);
-  heatLabel.textContent = heat.value + "ど";
-  heatSatValue.textContent = heat.value + "ど";
-});
-function openHeatSheet() {
-  heatSheet.hidden = false;
-  requestAnimationFrame(() => heatSheet.classList.add("open"));
-  heat.focus();
-}
-function closeHeatSheet() {
-  heatSheet.classList.remove("open");
-  setTimeout(() => { heatSheet.hidden = true; }, 220);
-  heatSat.focus();
-  setSpeech(Number(heat.value) >= 37 ? "ぽかぽか あったかい!" : "ちょうど いい あたたかさ!");
-}
-heatSat.addEventListener("click", openHeatSheet);
-heatSheet.querySelectorAll("[data-close]").forEach((el) => el.addEventListener("click", closeHeatSheet));
-document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !heatSheet.hidden) closeHeatSheet(); });
-
+<dialog id="trialUnlock" class="flow-sheet" aria-labelledby="trialUnlockTitle">
+  <form class="flow-content">
+    <h2 id="trialUnlockTitle">タイマーを おわる</h2>
+    <label>パスワード<input name="code" type="password" required autocomplete="off"></label>
+    <p>デモでは、すきな文字を入れてね。</p>
+    <button type="submit" class="flow-primary">かいじょする</button>
+    <button type="button" class="flow-secondary">もどる</button>
+  </form>
+</dialog>
+<script type="module">
+import {waveAffinity} from './affinity.js';
+import {mountChildUI} from './child-ui.js';
+const tetemaru=document.getElementById("mainPal");
+const prefs={heat:readTrial("heat"),voice:readTrial("voice"),sleep:readTrial("sleep")};
+const {setSpeech,renderAffinity,celebrateStudy}=mountChildUI(prefs,writeTrial);
 // ---- 学習ロック機能 ----
 const GOAL_SECONDS = 10 * 60; // 今日の目標:10分
 const startBtn = document.getElementById("startBtn");
@@ -215,8 +171,7 @@ const overlay = document.getElementById("lockOverlay");
 const timerEl = document.getElementById("timer");
 const progressFill = document.getElementById("lockProgressFill");
 const unlockBtn = document.getElementById("unlockBtn");
-const unlockFill = document.getElementById("unlockFill");
-const unlockLabel = document.getElementById("unlockLabel");
+const trialUnlock = document.getElementById("trialUnlock");
 
 const subject = document.querySelector("#subject");
 subjects.forEach((s,i)=>subject.add(new Option(["さんすう","こくご","えいご","りか","しゃかい"][i],s)));
@@ -225,9 +180,6 @@ subject.onchange = () => writeTrial('subject',subject.value);
 let activeRun;
 let elapsed = 0;
 let tickTimer = null;
-let holdTimer = null;
-let holdStart = null;
-const HOLD_MS = 3000;
 
 function formatTime(sec) {
   const m = String(Math.floor(sec / 60)).padStart(2, "0");
@@ -248,7 +200,7 @@ function startLock(resume=false) {
     timerEl.textContent = formatTime(elapsed);
     progressFill.style.width = Math.min(100, (elapsed / GOAL_SECONDS) * 100) + "%";
   }, 1000);
-  if (!resume) {sayIfOn(activeRun.subject+"、いっしょに がんばろうね!"); bumpAffinity(3);}
+  if (!resume) setSpeech(activeRun.subject+"、いっしょに がんばろうね!");
 }
 
 function endLock() {
@@ -257,154 +209,57 @@ function endLock() {
   overlay.classList.add("hidden"); if(!saved) return;
   tetemaru.playMotion?.("happy");
   setSpeech("よくがんばったね!おつかれさま!");
-  bumpAffinity(8);
+  updateAffinity(true);
 }
 
 startBtn.addEventListener("click", ()=>startLock());
 
-function startHold(e) {
-  if (holdTimer!==null || overlay.classList.contains("hidden")) return;
+unlockBtn.addEventListener("click",()=>{
+  trialUnlock.querySelector("form").reset();
+  trialUnlock.showModal();
+});
+trialUnlock.querySelector("button[type=button]").onclick=()=>trialUnlock.close();
+trialUnlock.querySelector("form").onsubmit=e=>{
   e.preventDefault();
-  holdStart = Date.now();
-  unlockLabel.textContent = "そのまま おしつづけて...";
-  holdTimer = setInterval(() => {
-    const pct = Math.min(100, ((Date.now() - holdStart) / HOLD_MS) * 100);
-    unlockFill.style.width = pct + "%";
-    if (pct >= 100) {
-      clearInterval(holdTimer); holdTimer=null;
-      cancelHold(); endLock();
-    }
-  }, 30);
+  if(!e.target.elements.code.value)return;
+  trialUnlock.close();endLock();
+};
+
+function trialAffinityStart(){
+  const saved=JSON.parse(readTrial('affinityStart'));
+  if(saved)return saved;
+  const now=new Date();
+  const anchor={score:getAffinity(),day:dayKey(now),time:now.getTime()};
+  writeTrial('affinityStart',JSON.stringify(anchor));
+  return anchor;
 }
-function cancelHold() {
-  clearInterval(holdTimer); holdTimer=null;
-  unlockFill.style.width = "0%";
-  unlockLabel.textContent = "ほごしゃは ここを 3びょう おしてください(かいじょ)";
-}
-unlockBtn.addEventListener("keydown", e=>{if(!e.repeat && (e.key===" " || e.key==="Enter"))startHold(e)});
-unlockBtn.addEventListener("keyup", cancelHold);
-unlockBtn.addEventListener("blur", cancelHold);
-unlockBtn.addEventListener("pointerdown", startHold);
-unlockBtn.addEventListener("pointerup", cancelHold);
-unlockBtn.addEventListener("pointerleave", cancelHold);
-unlockBtn.addEventListener("pointercancel", cancelHold);
-
-// ---- ぎゅっとする:タップ反応 ----
-const hugBtn = document.getElementById("hugBtn");
-hugBtn.addEventListener("click", () => {
-  tetemaru.playMotion?.("hug");
-  setSpeech("あったかいね、ありがとう!");
-  bumpAffinity(2);
-});
-
-// ---- 声のON/OFF ----
-const voiceToggle = document.getElementById("voiceToggle");
-let voiceOn = readTrial("voice") !== "off";
-voiceToggle.setAttribute("aria-pressed",String(voiceOn));
-voiceToggle.addEventListener("click", () => {
-  voiceOn = !voiceOn; writeTrial("voice",voiceOn?"on":"off");
-  voiceToggle.setAttribute("aria-pressed", String(voiceOn));
-  if (voiceOn) sayIfOn("ててまるだよ、よろしくね!");
-});
-
-// voice.js の speak() を、声OFFの時は呼ばないようにラップする
-function sayIfOn(text) {
-  const hour = new Date().getHours();
-  if (voiceOn && !(readTrial("sleep")!=="off" && (hour>=21 || hour<7))) speak(text);
-}
-
-// ---- なかよし度:ハートの水ゆらゆらゲージ ----
-// ハートの輪郭は y=3(てっぺん)〜y=20(下のとがり)。水位(baselineY)を直接パスに焼き込むことで、
-// SVGのtransform単位のあいまいさに左右されず、%とハートの水位を正確に一致させる。
-const AFFINITY_TOP_Y = 3;   // 100%のときの水面
-const AFFINITY_BOTTOM_Y = 21.5; // 0%のときの水面(ハートの下端より少し下=完全に空)
-
-function buildWavePath(baselineY, phaseDeg) {
-  const amp = 0.7, wavelength = 24, step = 3;
-  const pts = [];
-  for (let x = -24; x <= 48; x += step) {
-    const y = baselineY + amp * Math.sin((2 * Math.PI * x) / wavelength + (phaseDeg * Math.PI) / 180);
-    pts.push(`${x},${y.toFixed(2)}`);
+const affinityStart=trialAffinityStart();
+let displayedScore;
+function updateAffinity(celebrate=false){
+  const dates=new Set();
+  for(const key of Object.keys(localStorage)){
+    if(!key.startsWith(prefix+'session.'))continue;
+    const run=readRun(key.slice(prefix.length));
+    if(run && run.end>=affinityStart.time && run.end-run.start>=60000)dates.add(dayKey(new Date(run.end)));
   }
-  return `M ${pts[0]} L ${pts.slice(1).join(" L ")} L 48,30 L -24,30 Z`;
+  const pct=waveAffinity(affinityStart.score,affinityStart.day,dates,dayKey(new Date()));
+  if(pct===displayedScore)return;
+  renderAffinity(pct,displayedScore!==undefined);
+  if(celebrate && pct>displayedScore)celebrateStudy();
+  displayedScore=pct;
 }
-
-const waveBackEl = document.getElementById("affinityWaveBack");
-const waveFrontEl = document.getElementById("affinityWaveFront");
-const affinityLevelEl = document.getElementById("affinityLevel");
-const affinityPctEl = document.getElementById("affinityPct");
-const affinityToastEl = document.getElementById("affinityToast");
-
-function pctToBaselineY(pct) {
-  return AFFINITY_TOP_Y + ((AFFINITY_BOTTOM_Y - AFFINITY_TOP_Y) * (100 - pct)) / 100;
+function scheduleMidnight(){
+  const next=new Date();
+  next.setHours(24,0,0,0);
+  setTimeout(()=>{updateAffinity();scheduleMidnight();},Math.max(1,next.getTime()-Date.now()));
 }
-
-let currentBaselineY = pctToBaselineY(0);
-let waveAnimFrame = null;
-
-function drawWaveAt(baselineY) {
-  waveBackEl.setAttribute("d", buildWavePath(baselineY, 0));
-  waveFrontEl.setAttribute("d", buildWavePath(baselineY, 180));
-}
-
-function animateWaveTo(targetBaselineY) {
-  cancelAnimationFrame(waveAnimFrame);
-  const startY = currentBaselineY;
-  const startTime = performance.now();
-  const duration = 700;
-  function step(now) {
-    const t = Math.min(1, (now - startTime) / duration);
-    const eased = 1 - Math.pow(1 - t, 3);
-    currentBaselineY = startY + (targetBaselineY - startY) * eased;
-    drawWaveAt(currentBaselineY);
-    if (t < 1) waveAnimFrame = requestAnimationFrame(step);
-  }
-  waveAnimFrame = requestAnimationFrame(step);
-}
-
-function renderAffinity(pct, animate = true) {
-  const targetY = pctToBaselineY(pct);
-  if (animate) {
-    animateWaveTo(targetY);
-  } else {
-    currentBaselineY = targetY;
-    drawWaveAt(targetY);
-  }
-  affinityLevelEl.textContent = affinityLevelName(pct);
-  affinityPctEl.textContent = pct + "%";
-}
-
-let affinityToastTimer = null;
-function showAffinityToast(text) {
-  affinityToastEl.textContent = text;
-  affinityToastEl.classList.add("show");
-  clearTimeout(affinityToastTimer);
-  affinityToastTimer = setTimeout(() => affinityToastEl.classList.remove("show"), 1600);
-}
-
-function bumpAffinity(amount) {
-  const { after, levelUp } = addAffinity(amount);
-  renderAffinity(after);
-  if (levelUp) {
-    showAffinityToast(`なかよし度アップ!「${affinityLevelName(after)}」になったよ`);
-    sayIfOn(`なかよし度があがったよ!いまは${affinityLevelName(after)}だね!`);
-  } else {
-    showAffinityToast("なかよし度アップ!");
-  }
-}
-
-renderAffinity(getAffinity(), false);
-</script>
-<script>
+updateAffinity();
+scheduleMidnight();
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)updateAffinity();});
 let effortCount=WEEK_DETAIL.at(-1).sessions.length;
-function revealStage(){
- if(!document.querySelector('#childPhone').classList.contains('is-intro'))return;
- document.querySelector('#childPhone').classList.remove('is-intro');
- document.querySelector('#stage').classList.remove('is-collapsed');
- if(!readRun('active'))sayIfOn('やあ！いっしょに がんばろう！');
-}
-tetemaru.addEventListener('pal-reveal',revealStage,{once:true});
-setTimeout(revealStage,4000);
+tetemaru.addEventListener('pal-reveal',()=>{
+ if(!readRun('active'))setSpeech('やあ！いっしょに がんばろう！');
+},{once:true});
 if(readRun('active'))startLock(true);
 function updateEffort(){
  const count=effortCount;

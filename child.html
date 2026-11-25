@@ -37,22 +37,25 @@
       <plush-pal data-motion="intro" class="tetemaru-btn" id="mainPal"></plush-pal>
 
       <!-- 左上: なかよし度 -->
-      <div class="satellite sat-tl" aria-label="ててまるとのなかよし度">
-      <svg class="affinity-heart" viewBox="0 0 24 24" width="40" height="40" aria-hidden="true">
+      <div id="affinityMeter" class="satellite sat-tl" role="meter" aria-label="ててまるとのなかよし度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="15">
+      <svg class="affinity-heart" viewBox="0 0 24 24" width="46" height="46" aria-hidden="true">
         <defs>
           <clipPath id="heartClip"><path d="M12 20C12 20 3 14 3 8.5 3 5 5.5 3 8.5 3 10.5 3 12 4.5 12 6 12 4.5 13.5 3 15.5 3 18.5 3 21 5 21 8.5 21 14 12 20 12 20Z"/></clipPath>
+          <linearGradient id="heartWater" x2="0" y2="1" gradientUnits="objectBoundingBox">
+            <stop stop-color="#ef8193"/><stop offset="1" stop-color="#c9435a"/>
+          </linearGradient>
         </defs>
         <path class="affinity-heart-bg" d="M12 20C12 20 3 14 3 8.5 3 5 5.5 3 8.5 3 10.5 3 12 4.5 12 6 12 4.5 13.5 3 15.5 3 18.5 3 21 5 21 8.5 21 14 12 20 12 20Z"/>
         <g clip-path="url(#heartClip)">
-          <g id="affinityWaveGroup" class="affinity-wave-group">
-            <path id="affinityWaveBack" class="affinity-wave affinity-wave-back" d=""></path>
-            <path id="affinityWaveFront" class="affinity-wave affinity-wave-front" d=""></path>
+          <g id="affinityWaveGroup" class="affinity-wave-group" style="transform:translateY(15px)">
+            <path class="affinity-wave-back" d="M-24 -1.3q3 -2.8 6 0t6 0t6 0t6 0t6 0t6 0t6 0t6 0t6 0t6 0t6 0t6 0v28h-72z"/>
+            <path class="affinity-wave-front" d="M-24 0q3 3.6 6 0t6 0t6 0t6 0t6 0t6 0t6 0t6 0t6 0t6 0t6 0t6 0v28h-72z"/>
           </g>
         </g>
         <path class="affinity-heart-line" d="M12 20C12 20 3 14 3 8.5 3 5 5.5 3 8.5 3 10.5 3 12 4.5 12 6 12 4.5 13.5 3 15.5 3 18.5 3 21 5 21 8.5 21 14 12 20 12 20Z"/>
       </svg>
         <span class="sat-value" id="affinityPct">15%</span>
-        <span class="sat-label" id="affinityLevel">はじめまして</span>
+        <span class="sat-label">なかよし度</span>
       </div>
 
       <!-- 右上: きょうのがんばり -->
@@ -78,7 +81,7 @@
     </section>
 
     <span class="swipe-hint">ててまるを なぞると まわるよ</span>
-    <div id="affinityToast" class="affinity-toast">なかよし度アップ!</div>
+    <div id="affinityToast" class="affinity-toast" role="status"></div>
 
     <!-- 今日の目標 -->
     <div class="child-card goal-card intro-item">
@@ -86,10 +89,10 @@
       <div class="child-goal-value"><select id="subject" aria-label="きょうの きょうか"></select> を <select id="goal" aria-label="きょうの めあて"></select></div>
       <button class="start-btn" id="startBtn" disabled>
         <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><polygon points="6 4 20 12 6 20"/></svg>
-        <span id="startLabel">はじめる</span>
+        <span id="startLabel">勉強モード（タイマー）</span>
       </button>
+      <button type="button" class="pill-btn" id="quizBtn" disabled>問題モードで あそぶ</button>
       <button type="button" class="pill-btn" id="nicknameBtn" hidden>よびかたを かえる</button>
-      <button type="button" class="pill-btn" id="continueBtn" hidden>このまえの つづきから</button>
     </div>
   </main>
 
@@ -128,20 +131,14 @@
     <div class="lock-goal-label" id="lockGoalLabel">もくひょう:さんすうを 10ぷん</div>
 
     <div class="allowed-box">
-      <span class="allowed-title">つかえるもの</span>
-      <button type="button" id="askBtn" class="allowed-item pill-btn">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
-        <span id="askLabel">ててまるに きく</span>
-      </button>
       <button type="button" id="pauseBtn" class="allowed-item pill-btn">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
         <span id="pauseLabel">ひとやすみ</span>
       </button>
     </div>
 
-    <button class="unlock-btn" id="unlockBtn">
-      <span class="unlock-fill" id="unlockFill"></span>
-      <span id="unlockLabel">ほごしゃは ここを 3びょう おしてください(かいじょ)</span>
+    <button type="button" class="unlock-btn" id="unlockBtn">
+      <span id="unlockLabel">パスワードで おわる</span>
     </button>
   </div>
 

@@ -1,5 +1,6 @@
-import { family, initial, newId, pinHash, dateAt } from './store.js';
-import { isDemo, getDays, parentAllowed, allowParent, clearParentAccess, resetDemo } from './zip-records.js';
+import { family, initial, newId, pinHash, verifyParentPin, dateAt } from './store.js';
+import { isDemo, getDays, parentAllowed, allowParent, clearParentAccess, resetDemo, demoTimerKey } from './zip-records.js';
+import {topics, demoStateKey, readDemo} from './demo-topics.js';
 
 const $ = id => document.getElementById(id);
 const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -15,6 +16,13 @@ function demoPrefs(){
   catch { return {}; }
 }
 function prefs(){return isDemo ? demoPrefs() : record.preferences || {};}
+function activeDemoGoal(){
+  const timer=readDemo(demoTimerKey);
+  if(timer.status==='active'||timer.status==='paused')return timer;
+  const state=readDemo(demoStateKey);
+  const topic=state?.started && topics.find(t=>t.id===state.topicId);
+  return topic?{subject:topic.subject,goal:state.goal}:null;
+}
 function message(text) {
   const messageBox=$('parentDialog').open ? $('sheetMessage') : $('parentMessage');
   messageBox.textContent=text;
@@ -75,10 +83,18 @@ async function enter(){
       return;
     }
     if(stage==='register'){
-      gate('ペアリングが完了しました','<p>学習記録で使うお子さんの名前と学年を登録します。</p>'+form('register',profileFields(),'登録して入口に戻る'));
+      gate('ペアリングが完了しました','<p>学習記録で使うお子さんの名前と学年を登録します。</p>'+
+        form('register',profileFields()+pinField('タイマーの解除パスワード（数字4桁・後で設定可）',false),'登録して入口に戻る'));
       return;
     }
     const params=new URLSearchParams(location.search);
+    if(params.get('panel')==='timer-pin'){
+      if(record.pin){clearParentAccess();location.replace('child.html');return;}
+      gate('タイマーの解除パスワードを設定',
+        '<p>保護者の方が数字4桁を決めてください。計測の終了と保護者ホームの入室に使います。</p>'+
+        form('timer-pin',pinField('解除パスワード（数字4桁）',true),'保存してこども画面へ'));
+      return;
+    }
     if(params.get('return')==='log'||params.get('next')==='log'){
       location.replace(logLink + (/^#\d{4}-\d{2}-\d{2}$/.test(location.hash)?location.hash:''));
       return;
@@ -161,12 +177,12 @@ function showDashboard(selectedDate){
   const stats=dashboard.querySelectorAll('.stat-value');
   stats[0].textContent=minuteText(total(today.sessions));
   stats[1].textContent=today.sessions.length+'回';
-  const active=isDemo?null:record.active;
+  const active=isDemo?activeDemoGoal():record.active;
   const latest=today.sessions.at(-1);
   const goal=active||latest;
   dashboard.querySelector('.goal-value').innerHTML=ruby(goal?[goal.subject,goal.goal].filter(Boolean).join(' ／ '):'まだありません');
   const badge=dashboard.querySelector('.goal-row .badge');
-  badge.querySelector('.kanji-text').innerHTML=ruby(active?'取り組み中':latest?'学習を終了':'');
+  badge.querySelector('.kanji-text').innerHTML=ruby(active?.status==='paused'?'休憩中':active?'取り組み中':latest?'学習を終了':'');
   badge.querySelector('svg').style.display=active?'none':'';
   function updateBadge(){
     badge.hidden=!goal||!$('notif').checked;
@@ -192,7 +208,7 @@ function showDashboard(selectedDate){
     catch{message('設定を保存できませんでした。');}
   };
   $('settingsButton').onclick=settings;
-  $('demoReset').onclick=()=>sheet('デモを最初に戻しますか？','<p>ゆいの体験を最初の問題に戻します。</p>'+action('demo-reset','デモをリセットする'));
+  $('demoReset').onclick=()=>sheet('デモを最初に戻しますか？','<p>デモで選んだ教科と今回の学習記録を消して、選択画面に戻ります。</p>'+action('demo-reset','デモをリセットする'));
   renderDay();
 }
 function renderDay(){
@@ -222,6 +238,8 @@ function renderQuestions(day){
   list.previousElementSibling.innerHTML=ruby(day.date===dateAt()?'今日の質問・振り返り':day.date.slice(5).replace('-','/')+'の質問・振り返り');
   list.replaceChildren();
   for(const s of day.sessions){
+    if(!s.questions?.length && !s.insight && !s.done && !s.next)continue;
+    const quiz=s.kind==='quiz'||(isDemo&&!s.kind);
     const qs=s.questions?.length?s.questions:[null];
     for(const [i,q] of qs.entries()){
       const wrap=document.createElement('div');
@@ -231,7 +249,7 @@ function renderQuestions(day){
       const key=s.id+'/'+i;
       let reviewed=isDemo?Boolean(prefs().reviewed?.[key]):Boolean((q||s).reviewed);
       wrap.innerHTML=`<button type="button" class="list-item list-item-plain" aria-expanded="false"><span class="list-icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg></span><span class="list-text"><span class="list-title">${ruby(q?.text||s.material||s.subject)}</span><span class="list-sub"><span class="tag ${reviewed?'':'tag-new'}">${reviewed?'見返し済み':'未確認'}</span>${ruby(s.subject)} ／ ${ruby(s.material)} ／ ${minuteText(duration(s))}</span></span>${chevron}</button>
-      <div hidden><div class="qa-body"><div class="qa-question">自分で気づいたこと</div><p>${ruby(insight||'記入なし')}</p>${hints}${s.done && s.done!==insight?'<p>できたこと　'+ruby(s.done)+'</p>':''}${s.next?'<p>次に取り組むこと　'+ruby(s.next)+'</p>':''}</div></div>`;
+      <div hidden><div class="qa-body"><div class="qa-question">${quiz?'こたえの説明':'自分で気づいたこと'}</div><p>${ruby(insight||'記入なし')}</p>${hints}${s.done && s.done!==insight?'<p>'+(quiz?'えらんだこたえ　':'できたこと　')+ruby(s.done)+'</p>':''}${s.next?'<p>次に取り組むこと　'+ruby(s.next)+'</p>':''}</div></div>`;
       const button=wrap.firstElementChild, body=wrap.lastElementChild;
       button.onclick=async()=>{
         body.hidden=!body.hidden;
@@ -256,7 +274,7 @@ function renderQuestions(day){
       list.append(wrap);
     }
   }
-  if(!list.children.length)list.innerHTML='<p class="card setting-note">学習を終えると、質問や気づきがここに残ります。</p>';
+  if(!list.children.length)list.innerHTML='<p class="card setting-note">この日の質問・振り返りはありません。</p>';
 }
 function sheet(title,body){
   $('sheetContent').innerHTML='<h2 class="section-title" id="sheetTitle">'+escape(title)+'</h2>'+body;
@@ -266,7 +284,7 @@ function sheet(title,body){
 }
 function settings(){
   sheet('家庭の設定',form('profile',profileFields(record.name,record.grade),'名前と学年を保存')+
-    form('pin',pinField('保護者用の暗証番号（数字4桁・空欄で解除）',false),'暗証番号を保存')+
+    form('pin',pinField('保護者用の暗証番号（タイマーと共通・数字4桁・空欄で設定解除）',false),'暗証番号を保存')+
     '<p>プロフィールと学習記録はこのブラウザに保存されています。</p>'+
     action('reconnect','ててまるを再接続')+action('reset','家庭データの初期化'));
 }
@@ -286,11 +304,22 @@ document.addEventListener('submit',e=>{
     if(isDemo)return;
     if(kind==='unlock'){
       const latest=await family();
-      if(latest.pin){
-        const [salt,expected]=latest.pin.split('.');
-        if(await pinHash(data.get('code'),salt)!==expected){message('暗証番号を確認してください。');return;}
+      if(latest.pin && !await verifyParentPin(data.get('code'),latest.pin)){
+        message('暗証番号を確認してください。');return;
       }
       allowParent(latest);await enter();return;
+    }
+    if(kind==='timer-pin'){
+      const code=data.get('code');
+      if(!/^\d{4}$/.test(code)){message('数字4桁で入力してください。');return;}
+      const salt=newId(),digest=await pinHash(code,salt);
+      let saved=false;
+      await family(value=>{
+        if(value.pin||!value.paired||!value.name)return false;
+        value.pin=salt+'.'+digest;saved=true;
+      });
+      if(!saved){await enter();return;}
+      clearParentAccess();location.replace('child.html');return;
     }
     if(kind==='pin'){
       const code=data.get('code'),salt=newId();
@@ -300,7 +329,17 @@ document.addEventListener('submit',e=>{
     }
     const name=data.get('name').trim(),grade=Number(data.get('grade'));
     if(!name||!(grade>=1 && grade<=6)){message('名前と学年を入力してください。');return;}
-    if(!await changeFamily(f=>{f.name=name;f.grade=grade;}))return;
+    const registrationCode=kind==='register'?data.get('code'):'';
+    let registrationPin='';
+    if(registrationCode){
+      if(!/^\d{4}$/.test(registrationCode)){message('数字4桁で入力してください。');return;}
+      const salt=newId();
+      registrationPin=salt+'.'+await pinHash(registrationCode,salt);
+    }
+    if(!await changeFamily(f=>{
+      f.name=name;f.grade=grade;
+      if(registrationPin&&!f.pin)f.pin=registrationPin;
+    }))return;
     if(kind==='register'){location.assign('trial.html');return;}
     await enter();message('名前と学年を保存しました。');
   });

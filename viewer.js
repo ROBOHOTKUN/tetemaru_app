@@ -41,7 +41,21 @@ function loadModel() {
           part.castShadow=!light.paw;
         }
         // The reference Blender scene uses the medium-high contrast AgX look.
+        const beadEye=part.material.name==='Espresso';
+        part.material.customProgramCacheKey=()=>beadEye?'bead-eye':'plush';
         part.material.onBeforeCompile = shader => {
+          if(beadEye){
+            // Keep the soft front-left catchlight, excluding fill and rim reflections.
+            shader.fragmentShader=shader.fragmentShader.replace('#include <opaque_fragment>', `
+              vec3 keyHalfVector=normalize(normalize(vec3(-3.7,4.6,4.4))+vec3(0.,0.,1.));
+              float keyFacing=max(dot(normal,keyHalfVector),0.0);
+              float keyGloss=smoothstep(0.87,0.98,keyFacing);
+              vec3 beadShade=diffuseColor.rgb*(0.72+0.65*max(normal.y,0.0));
+              outgoingLight=mix(min(outgoingLight,beadShade),outgoingLight,keyGloss);
+              outgoingLight+=vec3(0.18,0.16,0.14)*pow(keyFacing,42.0);
+              #include <opaque_fragment>
+            `);
+          }
           shader.fragmentShader = shader.fragmentShader.replace('#include <tonemapping_fragment>', `
             #include <tonemapping_fragment>
             float luminance=dot(gl_FragColor.rgb,vec3(.2126,.7152,.0722));
@@ -120,10 +134,11 @@ class PlushPal extends HTMLElement{
   this.innerHTML='<button type="button" class="model-button" aria-label="ててまる。左右にスワイプで回転、タップで手をふる"><img src="./friend-front.png" alt=""><span aria-live="polite"></span></button>';
   const button=this.firstElementChild,reply=button.lastElementChild;
   let yaw=0,pitch=0,drag,dragged=false,start=-1,frame=0,renderer,observer,visibility;
+  let returnTimer,returnPose=null,arrivalStart=null;
   const animated=this.hasAttribute('data-motion');
   let visible=false,clip=this.dataset.motion==='intro'?'intro':'idle',epoch=0,pausedAt=0,lastPose=-1,revealed=false;
   const reduced=matchMedia('(prefers-reduced-motion: reduce)');
-  this.cleanup=()=>{cancelAnimationFrame(frame);observer?.disconnect();visibility?.disconnect();renderer?.dispose();renderer?.forceContextLoss()};
+  this.cleanup=()=>{clearTimeout(returnTimer);cancelAnimationFrame(frame);observer?.disconnect();visibility?.disconnect();renderer?.dispose();renderer?.forceContextLoss()};
   try{
    const template=await loadModel();if(!this.isConnected || this.firstElementChild!==button)return;
    renderer=new T.WebGLRenderer({alpha:true,antialias:true,powerPreference:'low-power'});
@@ -140,12 +155,49 @@ class PlushPal extends HTMLElement{
      if (part.morphTargetInfluences) rig.push({weights:part.morphTargetInfluences,targets:part.morphTargetDictionary});
    });
    button.prepend(renderer.domElement);
+   function stopReturn(){
+    clearTimeout(returnTimer);
+    returnPose=null;
+    arrivalStart=null;
+   }
+   function returnToFront(){
+    stopReturn();
+    if(!yaw&&!pitch)return;
+    returnTimer=setTimeout(()=>{
+     // An arbitrary number of swipes still needs at most half a turn to return.
+     const now=performance.now();
+     const frontYaw=Math.atan2(Math.sin(yaw),Math.cos(yaw));
+     const distance=Math.min(1,Math.hypot(frontYaw,pitch)/Math.PI);
+     returnPose={yaw:frontYaw,pitch,start:now,duration:260+1740*distance};
+     draw(now);
+    },400);
+   }
    const reveal=()=>{if(!revealed){revealed=true;this.dispatchEvent(new Event('pal-reveal'))}};
    function draw(time,force=true){
     cancelAnimationFrame(frame);const elapsed=Math.max(0,time-start);
+    if(returnPose){
+     const t=reduced.matches?1:Math.min(1,Math.max(0,(time-returnPose.start)/returnPose.duration));
+     const remaining=(1-t)**2*(1+1.5*t);
+     yaw=returnPose.yaw*remaining;pitch=returnPose.pitch*remaining;
+     if(t===1){
+      returnPose=null;
+      if(!reduced.matches)arrivalStart=time;
+     }
+     force=true;
+    }
     const step=Math.floor(elapsed*24/1000);
     const waving=start>=0 && step<greeting.length;
     const [wave,wink]=waving?greeting[reduced.matches?10:step]:[0,0];
+    let tilt=0,arrivalWink=0;
+    if(arrivalStart!==null){
+     const progress=Math.min(1,Math.max(0,(time-arrivalStart)/760));
+     if(progress===1||reduced.matches||waving)arrivalStart=null;
+     else{
+      tilt=.13*Math.sin(Math.PI*progress)**2;
+      arrivalWink=T.MathUtils.smoothstep(progress,.12,.34)*(1-T.MathUtils.smoothstep(progress,.56,.82));
+     }
+     force=true;
+    }
     if(animated){
      if(!visible)return;
      if(!epoch)epoch=time;
@@ -157,16 +209,16 @@ class PlushPal extends HTMLElement{
      const width=1/Math.sqrt(height);
      if(waving){mesh.scale.setScalar(1);mesh.position.set(0,-.18,0)}
      else{mesh.scale.set(width,height,width);mesh.position.set(shift,lift+height-1-.18,0)}
-     pivot.rotation.set(pitch,yaw,0,'YXZ'); mesh.rotation.y=waving?0:spin;
-     poseModel(rig,wave,wink,waving?0:blink,waving?0:hug);
+     pivot.rotation.set(pitch,yaw,tilt,'YXZ'); mesh.rotation.y=waving?0:spin;
+     poseModel(rig,wave,Math.max(wink,arrivalWink),waving?0:blink*(1-arrivalWink),waving?0:hug);
      if(force || waving || lastPose!==i) renderer.render(scene,camera);
      lastPose=i;
      if(!reduced.matches)frame=requestAnimationFrame(()=>draw(performance.now(),false));
      return;
     }
-    poseModel(rig,wave,wink,0,0);
-    mesh.rotation.set(pitch,yaw,0,'YXZ');renderer.render(scene,camera);
-    if(waving)frame=requestAnimationFrame(draw);
+    poseModel(rig,wave,Math.max(wink,arrivalWink),0,0);
+    mesh.rotation.set(pitch,yaw,tilt,'YXZ');renderer.render(scene,camera);
+    if(waving||returnPose||arrivalStart!==null)frame=requestAnimationFrame(draw);
    }
    function resize(){
     const {width:w,height:h}=button.getBoundingClientRect();if(!w||!h)return;
@@ -203,11 +255,11 @@ class PlushPal extends HTMLElement{
     visibility.observe(this);
    }
    observer=new ResizeObserver(resize);observer.observe(button);resize();button.classList.add('ready');
-   button.onpointerdown=e=>{if(drag || !e.isPrimary || e.button!==0)return;drag={id:e.pointerId,x:e.clientX,y:e.clientY,yaw,pitch};dragged=false;button.setPointerCapture(e.pointerId)};
+   button.onpointerdown=e=>{if(drag || !e.isPrimary || e.button!==0)return;stopReturn();drag={id:e.pointerId,x:e.clientX,y:e.clientY,yaw,pitch};dragged=false;button.setPointerCapture(e.pointerId)};
    button.onpointermove=e=>{if(drag?.id!==e.pointerId)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;if(Math.hypot(dx,dy)>(e.pointerType==="touch"?7:4))dragged=true;if(dragged){yaw=drag.yaw+dx*.018;pitch=Math.max(-.55,Math.min(.55,drag.pitch+dy*.012));draw(performance.now())}};
-   button.onpointerup=e=>{if(drag?.id!==e.pointerId)return;if(!dragged) respond();drag=null};
-   button.onlostpointercapture=button.onpointercancel=e=>{if(drag?.id===e.pointerId){drag=null;dragged=true}};
-   button.onkeydown=e=>{if(e.key==='ArrowLeft'||e.key==='ArrowRight'){e.preventDefault();yaw+=e.key==='ArrowLeft'?-.32:.32;draw(performance.now())}};
+   button.onpointerup=e=>{if(drag?.id!==e.pointerId)return;drag=null;if(!dragged)respond();returnToFront()};
+   button.onlostpointercapture=button.onpointercancel=e=>{if(drag?.id===e.pointerId){drag=null;dragged=true;returnToFront()}};
+   button.onkeydown=e=>{if(!drag&&(e.key==='ArrowLeft'||e.key==='ArrowRight')){e.preventDefault();stopReturn();yaw+=e.key==='ArrowLeft'?-.32:.32;draw(performance.now());returnToFront()}};
    button.onclick=e=>{if(e.detail===0) respond()};
    const respond=()=>{if(animated && clip!=='idle' && !reduced.matches)return;this.dispatchEvent(new Event('pal-tap'));this.wave()};
    this.wave=()=>{if(!animated)reply.textContent='えへへ';clearTimeout(this.timer);start=performance.now();draw(start);this.timer=setTimeout(()=>{reply.textContent='';start=-1;draw(performance.now())},greeting.length*1000/24)};

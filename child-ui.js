@@ -20,7 +20,6 @@ const TAP_LINES = ["わーい!", "くすぐったいよ〜", "えへへ、うれ
 let tapIndex = 0;
 tetemaru.addEventListener("pal-tap", () => {
   setSpeech(TAP_LINES[tapIndex++ % TAP_LINES.length]);
-  bumpAffinity(1);
 });
 
 // ---- あたたかさ(下から出るシート) ----
@@ -55,7 +54,6 @@ const hugBtn = document.getElementById("hugBtn");
 hugBtn.addEventListener("click", () => {
   tetemaru.playMotion?.("hug");
   setSpeech("あったかいね、ありがとう!");
-  bumpAffinity(2);
 });
 
 // ---- 声のON/OFF ----
@@ -74,96 +72,40 @@ function sayIfOn(text) {
   if (voiceOn && !(prefs.sleep!=="off" && (hour>=21 || hour<7))) speak(text);
 }
 
-// ---- なかよし度:ハートの水ゆらゆらゲージ ----
-// ハートの輪郭は y=3(てっぺん)〜y=20(下のとがり)。水位(baselineY)を直接パスに焼き込むことで、
-// SVGのtransform単位のあいまいさに左右されず、%とハートの水位を正確に一致させる。
-const AFFINITY_TOP_Y = 3;   // 100%のときの水面
-const AFFINITY_BOTTOM_Y = 21.5; // 0%のときの水面(ハートの下端より少し下=完全に空)
-
-function buildWavePath(baselineY, phaseDeg) {
-  const amp = 0.7, wavelength = 24, step = 3;
-  const pts = [];
-  for (let x = -24; x <= 48; x += step) {
-    const y = baselineY + amp * Math.sin((2 * Math.PI * x) / wavelength + (phaseDeg * Math.PI) / 180);
-    pts.push(`${x},${y.toFixed(2)}`);
-  }
-  return `M ${pts[0]} L ${pts.slice(1).join(" L ")} L 48,30 L -24,30 Z`;
-}
-
-const waveBackEl = document.getElementById("affinityWaveBack");
-const waveFrontEl = document.getElementById("affinityWaveFront");
-const affinityLevelEl = document.getElementById("affinityLevel");
+const meter = document.getElementById("affinityMeter");
+const water = document.getElementById("affinityWaveGroup");
 const affinityPctEl = document.getElementById("affinityPct");
 const affinityToastEl = document.getElementById("affinityToast");
-
-function pctToBaselineY(pct) {
-  return AFFINITY_TOP_Y + ((AFFINITY_BOTTOM_Y - AFFINITY_TOP_Y) * (100 - pct)) / 100;
-}
-
-let currentBaselineY = pctToBaselineY(0);
-let waveAnimFrame = null;
-
-function drawWaveAt(baselineY) {
-  waveBackEl.setAttribute("d", buildWavePath(baselineY, 0));
-  waveFrontEl.setAttribute("d", buildWavePath(baselineY, 180));
-}
-
-function animateWaveTo(targetBaselineY) {
-  cancelAnimationFrame(waveAnimFrame);
-  const startY = currentBaselineY;
-  const startTime = performance.now();
-  const duration = 700;
-  function step(now) {
-    const t = Math.min(1, (now - startTime) / duration);
-    const eased = 1 - Math.pow(1 - t, 3);
-    currentBaselineY = startY + (targetBaselineY - startY) * eased;
-    drawWaveAt(currentBaselineY);
-    if (t < 1) waveAnimFrame = requestAnimationFrame(step);
-  }
-  waveAnimFrame = requestAnimationFrame(step);
-}
+let displayed = null;
 
 function renderAffinity(pct, animate = true) {
-  const targetY = pctToBaselineY(pct);
-  if (animate) {
-    animateWaveTo(targetY);
-  } else {
-    currentBaselineY = targetY;
-    drawWaveAt(targetY);
-  }
-  affinityLevelEl.textContent = affinityLevelName(pct);
-  affinityPctEl.textContent = pct + "%";
+  const score = Math.max(0,Math.min(100,Math.round(pct)));
+  if (!Number.isFinite(score) || score===displayed) return;
+  const ratio = score/100;
+  // Leave room for both crests at the narrow tip when the heart is nearly empty.
+  const waterY = score===0 ? 24 : 20 - 17*(.62*Math.sqrt(ratio)+.38*ratio);
+  water.classList.toggle('settle',animate && displayed!==null);
+  water.style.transform = `translateY(${waterY}px)`;
+  affinityPctEl.textContent = score + "%";
+  meter.setAttribute('aria-valuenow',String(score));
+  meter.setAttribute('aria-valuetext',score+'パーセント、'+affinityLevelName(score));
+  displayed=score;
 }
 
 let affinityToastTimer = null;
-function showAffinityToast(text) {
-  affinityToastEl.textContent = text;
+function celebrateStudy() {
+  affinityToastEl.textContent = 'いっしょに勉強して、なかよし度アップ！';
   affinityToastEl.classList.add("show");
   clearTimeout(affinityToastTimer);
   affinityToastTimer = setTimeout(() => affinityToastEl.classList.remove("show"), 1600);
 }
 
 function affinityLevelName(n){return n>=90?"ずっといっしょ":n>=60?"大親友":n>=30?"なかよし":"はじめまして"}
-function bumpAffinity(amount) {
-  const before=Number(prefs.affinity ?? 15);
-  const after=Math.min(100,before+amount);
-  const levelUp=affinityLevelName(before)!==affinityLevelName(after);
-  setPref("affinity",after);
-  renderAffinity(after);
-  if (levelUp) {
-    showAffinityToast(`なかよし度アップ!「${affinityLevelName(after)}」になったよ`);
-    sayIfOn(`なかよし度があがったよ!いまは${affinityLevelName(after)}だね!`);
-  } else {
-    showAffinityToast("なかよし度アップ!");
-  }
-}
-
-renderAffinity(Number(prefs.affinity ?? 15),false);
 function reveal(){
  document.querySelector("#childPhone").classList.remove("is-intro");
  document.querySelector("#stage").classList.remove("is-collapsed");
 }
 tetemaru.addEventListener('pal-reveal',reveal,{once:true});
 if(tetemaru.querySelector(".ready"))reveal();else setTimeout(reveal,3500);
-return {setSpeech,bumpAffinity,setGreeting(text){greeting=text;setSpeech(text,{voice:false,keep:true})}};
+return {setSpeech,renderAffinity,celebrateStudy,setGreeting(text){greeting=text;setSpeech(text,{voice:false,keep:true})}};
 }
