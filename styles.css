@@ -705,3 +705,144 @@ plush-pal .model-button{position:relative;display:block;width:100%;height:100%;p
 plush-pal canvas,plush-pal img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
 plush-pal .ready img{display:none}
 plush-pal .model-button span{position:absolute;right:2px;top:2px;color:var(--coral-deep);background:var(--white);border-radius:12px}
+
+/* ---- パスワードの自動入力と、錠が開く動き(autofill.js) ---- */
+.auto-lock {
+  justify-self: center; display: grid; place-items: center; width: 64px; height: 64px; border-radius: 50%;
+  background: var(--peach); color: var(--coral-deep);
+  transition: background .35s ease, color .35s ease, transform .35s cubic-bezier(.34,1.56,.64,1);
+}
+.auto-lock svg { overflow: visible; }
+.auto-lock-body { fill: currentColor; }
+.auto-lock-hole { fill: var(--white); }
+.auto-lock-shackle { transform-box: fill-box; transform-origin: 100% 100%; transition: transform .45s cubic-bezier(.34,1.56,.64,1); }
+.auto-lock.is-open { background: #DDF4E6; color: #2E9E5B; transform: scale(1.08); animation: autoLockJiggle .5s ease .1s; }
+.auto-lock.is-open .auto-lock-shackle { transform: translateY(-5px) rotate(-28deg); }
+@keyframes autoLockJiggle { 30% { rotate: -8deg; } 60% { rotate: 6deg; } 100% { rotate: 0deg; } }
+.flow-content input.auto-filling { border-color: var(--coral); box-shadow: 0 0 0 4px rgba(242,112,126,.18); letter-spacing: .5em; }
+.flow-content input.auto-tick { animation: autoTick .23s ease; }
+@keyframes autoTick { 40% { transform: scale(1.03); box-shadow: 0 0 0 7px rgba(242,112,126,.22); } }
+.flow-content input.auto-filled { border-color: #2E9E5B; box-shadow: 0 0 0 4px rgba(46,158,91,.18); letter-spacing: .5em; }
+@media (prefers-reduced-motion: reduce) {
+  .auto-lock, .auto-lock-shackle { transition: none; }
+  .auto-lock.is-open, .flow-content input.auto-tick { animation: none; }
+}
+
+/* ---- ててまるの あたたかさ(34〜40ど) ---- */
+.heat-readout { display: flex; align-items: baseline; justify-content: center; gap: 10px; }
+.heat-readout .temp-value { width: auto; font-size: 34px; }
+.heat-zone {
+  font-size: 12px; font-weight: 800; color: var(--coral-deep); background: var(--peach);
+  padding: 3px 10px; border-radius: 999px;
+}
+.heat-note { margin: -6px 0 0; text-align: center; font-size: 13px; color: var(--muted); }
+.heat-ticks {
+  display: flex; justify-content: space-between; padding: 0 32px; margin-top: -6px;
+  font-size: 11px; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums;
+}
+.heat-off {
+  all: unset; cursor: pointer; box-sizing: border-box; align-self: center; text-align: center;
+  padding: 8px 16px; border-radius: 999px; font-size: 13px; font-weight: 800;
+  color: var(--coral-deep); background: var(--white); border: 1.5px solid var(--peach);
+}
+.heat-off[aria-pressed="true"] { background: var(--coral); border-color: var(--coral); color: var(--white); }
+.heat-off:focus-visible { outline: 2.5px solid var(--coral-deep); outline-offset: 2px; }
+.heat-safety { margin: -4px 0 0; text-align: center; font-size: 11px; color: var(--muted); }
+.sheet.is-off .temp-row, .sheet.is-off .heat-ticks { opacity: .4; }
+.sheet.is-off .temp-value, .sheet.is-off .heat-zone { color: var(--muted); }
+.sheet.is-off .heat-zone { background: var(--line); }
+
+/* ---- きょうの もくひょう: なにを・なんぷん のチップ(goal-picker.js) ---- */
+.goal-summary { font-size: 22px; }
+.goal-picker { width: 100%; display: grid; gap: 12px; }
+.goal-pick { display: grid; gap: 6px; }
+.goal-pick-label { font-size: 11px; font-weight: 800; color: var(--muted); letter-spacing: .08em; padding-left: 4px; }
+.goal-chips { display: grid; gap: 8px; }
+.goal-chip {
+  all: unset; box-sizing: border-box; cursor: pointer; -webkit-tap-highlight-color: transparent;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  font-size: 13px; font-weight: 800; color: var(--ink); text-align: center;
+  transition: background .15s ease, color .15s ease, box-shadow .15s ease, border-color .15s ease;
+}
+.goal-chip:focus-visible { outline: 2.5px solid var(--coral-deep); outline-offset: 2px; }
+.goal-chip:disabled { cursor: default; opacity: .5; }
+.goal-chip.is-picked { animation: chipPop .32s cubic-bezier(.34,1.56,.64,1); }
+@keyframes chipPop { 0% { scale: .92; } 60% { scale: 1.06; } 100% { scale: 1; } }
+
+/* なにを: 3つずつ並ぶ、教科の色のアイコン付きタイル */
+.goal-pick-subject .goal-chips { grid-template-columns: repeat(3, 1fr); }
+.goal-pick-subject .goal-chip {
+  --c: #9C8FA0; flex-direction: column; gap: 3px; min-height: 62px; padding: 7px 4px 6px; border-radius: 18px;
+  background: #FFF6F2; border: 2px solid transparent; font-size: 12.5px; white-space: nowrap;
+}
+.goal-chip[data-subject="算数"] { --c: #C9435A; }
+.goal-chip[data-subject="国語"] { --c: #E85D6F; }
+.goal-chip[data-subject="英語"] { --c: #D9785F; }
+.goal-chip[data-subject="理科"] { --c: #3F97B0; }
+.goal-chip[data-subject="社会"] { --c: #C98E14; }
+.goal-chip-icon {
+  flex-shrink: 0; width: 28px; height: 28px; padding: 4px; box-sizing: border-box; border-radius: 50%;
+  color: var(--c); background: color-mix(in srgb, var(--c) 14%, white);
+}
+.goal-pick-subject .goal-chip[aria-checked="true"] {
+  background: var(--white); border-color: var(--c); color: var(--c);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--c) 25%, transparent);
+}
+.goal-pick-subject .goal-chip[aria-checked="true"] .goal-chip-icon { background: var(--c); color: var(--white); }
+
+/* なんぷん: ピンクのレールの上を白いつまみが動く、6つ並びのスイッチ */
+.goal-pick-minutes .goal-chips {
+  grid-template-columns: repeat(6, 1fr); gap: 2px; padding: 4px; border-radius: 999px; background: var(--peach);
+}
+.goal-pick-minutes .goal-chip { height: 34px; border-radius: 999px; color: var(--coral-deep); font-size: 12.5px; }
+.goal-pick-minutes .goal-chip[aria-checked="true"] {
+  background: var(--white); color: var(--coral-deep); box-shadow: 0 2px 6px rgba(201,67,90,0.22);
+}
+@media (prefers-reduced-motion: reduce) {
+  .goal-chip { transition: none; }
+  .goal-chip.is-picked { animation: none; }
+}
+
+/* ---- なんぷん スライダー(goal-picker.js) ---- */
+.goal-pick-head { display: flex; align-items: baseline; justify-content: space-between; padding: 0 4px; }
+.goal-minutes-value { font-size: 16px; font-weight: 900; color: var(--coral-deep); font-variant-numeric: tabular-nums; }
+.goal-minutes {
+  margin: 4px 0 0; height: 12px;
+  background: linear-gradient(90deg, var(--coral) 0 var(--fill, 0%), var(--peach) var(--fill, 0%) 100%);
+}
+.goal-minutes:disabled { opacity: .5; }
+.goal-minute-ticks { position: relative; height: 14px; margin: 0 14px; font-size: 11px; font-weight: 700; color: var(--muted); }
+.goal-minute-ticks span { position: absolute; top: 0; translate: -50% 0; font-variant-numeric: tabular-nums; }
+
+/* ---- きゅうけいちゅう: ててまるが すやすや休む ---- */
+.lock-overlay { transition: background .6s ease; }
+.lock-overlay.is-resting { background: linear-gradient(180deg, #F3EEF8 0%, #E9E2F3 60%, #DCD3EC 100%); }
+.lock-overlay.is-resting .lock-title { color: #7A62A8; }
+.lock-overlay.is-resting .timer { color: #8E86A0; }
+.lock-overlay.is-resting .lock-progress-fill { background: #B9A9D6; }
+.lock-overlay.is-resting .lock-icon-wrap { box-shadow: 0 8px 20px rgba(122,98,168,0.22); }
+.lock-badge .badge-moon, .lock-overlay.is-resting .lock-badge .badge-lock { display: none; }
+.lock-overlay.is-resting .lock-badge .badge-moon { display: block; }
+.lock-overlay.is-resting .lock-badge { background: #7A62A8; }
+#pauseBtn .pause-back-icon, .lock-overlay.is-resting #pauseBtn .pause-rest-icon { display: none; }
+.lock-overlay.is-resting #pauseBtn .pause-back-icon { display: block; }
+.lock-overlay.is-resting #pauseBtn { color: #7A62A8; }
+.lock-zzz { position: absolute; right: 4px; top: -6px; width: 40px; height: 60px; pointer-events: none; display: none; }
+.lock-overlay.is-resting .lock-zzz { display: block; }
+.lock-zzz span {
+  position: absolute; left: 0; bottom: 0; font-weight: 900; color: #8C74BA; opacity: 0;
+  animation: zzzFloat 3.6s ease-in-out infinite;
+}
+.lock-zzz span:nth-child(1) { font-size: 13px; }
+.lock-zzz span:nth-child(2) { font-size: 17px; animation-delay: 1.2s; }
+.lock-zzz span:nth-child(3) { font-size: 22px; animation-delay: 2.4s; }
+@keyframes zzzFloat {
+  0% { opacity: 0; translate: 0 0; rotate: -10deg; }
+  20% { opacity: 1; }
+  100% { opacity: 0; translate: 22px -46px; rotate: 12deg; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lock-zzz span { animation: none; opacity: 1; }
+  .lock-zzz span:nth-child(2) { translate: 10px -18px; }
+  .lock-zzz span:nth-child(3) { translate: 20px -36px; }
+}

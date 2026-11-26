@@ -4,12 +4,16 @@ import {topics,demoLogKey,demoStateKey,readDemo,completedDemoSessions} from './d
 import {mountChildUI} from './child-ui.js';
 import {decorateSheet} from './vendor/interaction.js';
 import {waveAffinity} from './affinity.js';
+import {autoUnlock} from './autofill.js';
+import {mountGoalPicker} from './goal-picker.js';
 
 const $=id=>document.getElementById(id);
 const demo=new URLSearchParams(location.search).get('mode')==='demo';
 const demoPrefs='tetemaru.demo.child-prefs';
 const subjects=[['算数','さんすう'],['国語','こくご'],['英語','えいご'],['理科','りか'],['社会','しゃかい'],['そのほか','そのほか']];
-const goals=[['5分だけ','5ふん',5],['10分だけ','10ぷん',10],['15分','15ふん',15],['20分','20ぷん',20],['30分','30ぷん',30],['45分','45ふん',45]];
+// 5〜60ぷん(5ぷんきざみ)。前から使っている値(5分だけ・10分だけ など)はそのまま残す
+const goals=[['5分だけ','5ふん',5],['10分だけ','10ぷん',10],['15分','15ふん',15],['20分','20ぷん',20],['25分','25ふん',25],['30分','30ぷん',30],
+ ['35分','35ふん',35],['40分','40ぷん',40],['45分','45ふん',45],['50分','50ぷん',50],['55分','55ふん',55],['60分','60ぷん',60]];
 const goalMinutes=new Map(goals.map(([key,,minutes])=>[key,minutes]));
 const text=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const icon=name=>'<span data-icon="'+name+'" aria-hidden="true"></span>';
@@ -17,6 +21,7 @@ const closeButton='<button type="button" class="flow-secondary" data-close>も�
 const dialog=$('flow'),body=$('flowContent'),overlay=$('lockOverlay');
 let profile,prefs,ui,channel,busy=false,pendingRefresh=false;
 let lastAffinity=null;
+let syncGoal=()=>{};
 
 async function ensureAffinityStart(){
  if(!profile.childPrefs?.affinityStartDay&&(demo||profile.paired)){
@@ -116,11 +121,12 @@ function paint(){
  updateAffinity();
  const run=profile.active,locked=Boolean(run);
  overlay.classList.toggle('hidden',!locked);
+ if(!locked){overlay.classList.remove('is-resting');$('lockPal').dataset.resting='false'}
  for(const selector of ['main','.tabbar','.child-topbar'])document.querySelector(selector).inert=locked;
  const ready=profile.paired&&profile.name&&profile.nick;
  $('subject').disabled=$('goal').disabled=!ready||locked;
  $('startBtn').disabled=false;$('quizBtn').disabled=!ready||locked;
- $('startLabel').textContent=ready?'勉強モード（タイマー）':profile.name?'よびかたを きめる':'いりぐちに もどる';
+ $('startLabel').textContent='勉強モード（タイマー）';
  $('nicknameBtn').hidden=demo||!ready;
  const count=profile.history.filter(s=>s.date===dateAt()).length;
  const tile=document.querySelector('.sat-tr');
@@ -131,12 +137,15 @@ function paint(){
   if(goalMinutes.has(run.goal))$('goal').value=run.goal;
   $('lockGoalLabel').textContent=[run.subject,run.goal].filter(Boolean).join(' ／ ');
   const paused=run.status==='paused';
-  document.querySelector('.lock-title').textContent=paused?'タイマーを とめています':'勉強モード';
-  document.querySelector('.lock-sub').textContent=paused?'つづけるときは「さいかい」を おしてね。':'べんきょうした じかんを はかっています。';
-  $('pauseLabel').textContent=paused?'さいかい':'いちじていし';
+  document.querySelector('.lock-title').textContent=paused?'きゅうけいちゅう':'勉強モード';
+  document.querySelector('.lock-sub').textContent=paused?'ててまるも すやすや ひとやすみ。':'べんきょうした じかんを はかっています。';
+  $('pauseLabel').textContent=paused?'べんきょうに もどる':'きゅうけい する';
+  overlay.classList.toggle('is-resting',paused);
+  $('lockPal').dataset.resting=String(paused);
   progress();
  }
- ui.setGreeting(ready?profile.nick+'、きょうは なにを やってみる？':profile.name?'なんて よんでほしい？':'はじめは、おうちのひとと いっしょに きてね。');
+ ui.setGreeting(profile.nick+'、きょうは なにを やってみる？');
+ syncGoal();
 }
 function nickname(){
  openSheet('nickname','なんて よんでほしい？','<form><label>よんでほしい なまえ<input name="nick" maxlength="80" required value="'+text(profile.nick)+'"></label><button class="flow-primary">この なまえに する</button>'+closeButton+'</form>');
@@ -160,8 +169,6 @@ function stopTime(run,now){
 }
 async function start(){
  await load();
- if(!profile.paired||!profile.name){location.assign('trial.html');return}
- if(!profile.nick){nickname();return}
  if(profile.active){paint();return}
  await load(v=>{
   if(v.active||!v.paired||!v.nick||(!demo&&!v.pin))return false;
@@ -171,7 +178,6 @@ async function start(){
   }
   v.active=startRecord('timer',$('subject').value,$('goal').value);
  });
- if(!demo&&!profile.active&&!profile.pin){location.assign('parent.html?panel=timer-pin');return}
  closeSheet();paint();
 }
 async function pauseTimer(){
@@ -188,11 +194,8 @@ async function pauseTimer(){
 async function unlock(){
  await load();const id=profile.active?.id;
  if(!id){closeSheet();paint();return}
- if(!demo&&!profile.pin){
-  openSheet('unlock','パスワードの設定','<p>保護者の方が、タイマーを終えるためのパスワードを設定してください。</p><a class="flow-primary" href="parent.html?panel=timer-pin">保護者の設定へ</a>'+closeButton);return;
- }
  const field=demo?'':' inputmode="numeric" pattern="[0-9]{4}" maxlength="4"';
- const help=demo?'<p>デモでは、好きな文字を1文字以上入れると解除できます。</p>':'<p>保護者用の4桁の暗証番号を入力してください。</p>';
+ const help='<p>おうちのひとの パスワードが じどうで はいるよ。</p>';
  openSheet('unlock','タイマーを おわる',help+'<form><label>パスワード<input type="password" name="code" autocomplete="off" required'+field+'></label><button type="submit" class="flow-primary">解除して記録する</button>'+closeButton+'</form>');
  formSubmit(async data=>{
   const code=String(data.get('code')??'');
@@ -212,6 +215,7 @@ async function unlock(){
   if(profile.active?.id===id){$('sheetError').textContent='パスワードが変更されました。もう一度入力してください。';return}
   closeSheet();paint();ui.setSpeech('がんばった じかんを きろくしたよ。');
  });
+ autoUnlock(body.querySelector('form'));
 }
 function quizElapsed(q){
  return (q.ms||0)+(q.started&&!q.paused?Math.max(0,Date.now()-q.since):0);
@@ -328,6 +332,7 @@ async function init(){
  }
  $('subject').value=profile.active?.subject||subject;
  $('goal').value=preferredGoal($('subject').value);
+ syncGoal=mountGoalPicker($('subject'),$('goal'),$('goalPicker'));
  async function saveChoice(explicitGoal){
   const selected=$('subject').value;
   if(!explicitGoal)$('goal').value=preferredGoal(selected);

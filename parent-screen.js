@@ -1,4 +1,5 @@
-import { family, initial, newId, pinHash, verifyParentPin, dateAt } from './store.js';
+import { family, initial, verifyParentPin, dateAt } from './store.js';
+import { autoUnlock } from './autofill.js';
 import { isDemo, getDays, parentAllowed, allowParent, clearParentAccess, resetDemo, demoTimerKey } from './zip-records.js';
 import {topics, demoStateKey, readDemo} from './demo-topics.js';
 
@@ -62,10 +63,7 @@ function clearScreen(){
   record=undefined;
 }
 function gateKind(value){
-  if(!parentAllowed(value))return 'unlock';
-  if(!value.paired)return 'pair';
-  if(!value.name)return 'register';
-  return 'dashboard';
+  return parentAllowed(value)?'dashboard':'unlock';
 }
 async function enter(){
   clearScreen();
@@ -76,25 +74,10 @@ async function enter(){
     const stage=gateKind(record);
     if(stage==='unlock'){
       gate('保護者用の暗証番号',form('unlock',pinField('暗証番号（数字4桁）',true),'ひらく'));
-      return;
-    }
-    if(stage==='pair'){
-      gate('ててまるを迎えよう','<p>画面の中でててまるとペアリングします。</p><button class="flow-primary" id="pairBtn" data-parent-action="pair">ててまるを探す</button>');
-      return;
-    }
-    if(stage==='register'){
-      gate('ペアリングが完了しました','<p>学習記録で使うお子さんの名前と学年を登録します。</p>'+
-        form('register',profileFields()+pinField('タイマーの解除パスワード（数字4桁・後で設定可）',false),'登録して入口に戻る'));
+      autoUnlock($('parentGate').querySelector('form'));
       return;
     }
     const params=new URLSearchParams(location.search);
-    if(params.get('panel')==='timer-pin'){
-      if(record.pin){clearParentAccess();location.replace('child.html');return;}
-      gate('タイマーの解除パスワードを設定',
-        '<p>保護者の方が数字4桁を決めてください。計測の終了と保護者ホームの入室に使います。</p>'+
-        form('timer-pin',pinField('解除パスワード（数字4桁）',true),'保存してこども画面へ'));
-      return;
-    }
     if(params.get('return')==='log'||params.get('next')==='log'){
       location.replace(logLink + (/^#\d{4}-\d{2}-\d{2}$/.test(location.hash)?location.hash:''));
       return;
@@ -284,7 +267,6 @@ function sheet(title,body){
 }
 function settings(){
   sheet('家庭の設定',form('profile',profileFields(record.name,record.grade),'名前と学年を保存')+
-    form('pin',pinField('保護者用の暗証番号（タイマーと共通・数字4桁・空欄で設定解除）',false),'暗証番号を保存')+
     '<p>プロフィールと学習記録はこのブラウザに保存されています。</p>'+
     action('reconnect','ててまるを再接続')+action('reset','家庭データの初期化'));
 }
@@ -309,38 +291,9 @@ document.addEventListener('submit',e=>{
       }
       allowParent(latest);await enter();return;
     }
-    if(kind==='timer-pin'){
-      const code=data.get('code');
-      if(!/^\d{4}$/.test(code)){message('数字4桁で入力してください。');return;}
-      const salt=newId(),digest=await pinHash(code,salt);
-      let saved=false;
-      await family(value=>{
-        if(value.pin||!value.paired||!value.name)return false;
-        value.pin=salt+'.'+digest;saved=true;
-      });
-      if(!saved){await enter();return;}
-      clearParentAccess();location.replace('child.html');return;
-    }
-    if(kind==='pin'){
-      const code=data.get('code'),salt=newId();
-      const hash=code?salt+'.'+await pinHash(code,salt):'';
-      if(await changeFamily(f=>{f.pin=hash;})){allowParent(record);settings();message('暗証番号を保存しました。');}
-      return;
-    }
     const name=data.get('name').trim(),grade=Number(data.get('grade'));
     if(!name||!(grade>=1 && grade<=6)){message('名前と学年を入力してください。');return;}
-    const registrationCode=kind==='register'?data.get('code'):'';
-    let registrationPin='';
-    if(registrationCode){
-      if(!/^\d{4}$/.test(registrationCode)){message('数字4桁で入力してください。');return;}
-      const salt=newId();
-      registrationPin=salt+'.'+await pinHash(registrationCode,salt);
-    }
-    if(!await changeFamily(f=>{
-      f.name=name;f.grade=grade;
-      if(registrationPin&&!f.pin)f.pin=registrationPin;
-    }))return;
-    if(kind==='register'){location.assign('trial.html');return;}
+    if(!await changeFamily(f=>{f.name=name;f.grade=grade;}))return;
     await enter();message('名前と学年を保存しました。');
   });
 });
@@ -354,11 +307,8 @@ document.addEventListener('click',e=>{
     }else if(what==='cancel-reset'){settings();}
     else if(what==='erase'){
       if(await changeFamily(f=>{for(const key of Object.keys(f))delete f[key];Object.assign(f,initial());})){clearParentAccess();location.assign('trial.html');}
-    }else if(what==='pair'||what==='reconnect'){
-      if(await changeFamily(f=>{f.paired=true;})){
-        if(what==='pair')await enter();
-        else message('ペアリングが完了しました。');
-      }
+    }else if(what==='reconnect'){
+      if(await changeFamily(f=>{f.paired=true;}))message('ペアリングが完了しました。');
     }
   });
 });

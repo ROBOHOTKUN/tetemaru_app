@@ -10,7 +10,20 @@ function openFamilyDB(){return new Promise((resolve,reject)=>{
   r.onerror=()=>reject(r.error);
 })}
 let pendingDB;
-export const initial=()=>({paired:false,name:'',grade:1,nick:'',pin:'',active:null,history:[]});
+// 初期設定(ペアリング・名前と学年・呼び名・暗証番号)は、最初からすべて済んでいる前提にする。
+// 暗証番号は固定で、入力欄には自動で入る(autofill.js)。
+export const HOME_PIN='1234';
+const HOME_PIN_HASH='tetemaru-home.b53274d76dc4b0485475df9b8bb998e7b80c4f334e667c1e67ca43e92711e9d4';
+function completeSetup(f){
+  f.paired=true;
+  if(!f.name)f.name='ゆい';
+  if(!(Number(f.grade)>=1&&Number(f.grade)<=6))f.grade=3;
+  if(!f.nick)f.nick=f.name;
+  f.pin=HOME_PIN_HASH;
+  f.history??=[];
+  return f;
+}
+export const initial=()=>completeSetup({name:'ゆい',grade:3,nick:'ゆい',active:null,history:[]});
 export async function family(change){
   pendingDB??=openFamilyDB().catch(error=>{pendingDB=undefined;throw error});
   const db=await pendingDB;
@@ -18,7 +31,7 @@ export async function family(change){
     const tx=db.transaction('family',change?'readwrite':'readonly');
     const store=tx.objectStore('family'), read=store.get('home'); let value;
     read.onsuccess=()=>{
-      value=read.result||initial();
+      value=completeSetup(read.result||initial());
       if(change && change(value)!==false)store.put(value,'home');
     };
     tx.oncomplete=()=>resolve(value);

@@ -68,7 +68,7 @@
       <!-- 左下: あたたかさ -->
       <button class="satellite sat-bl" id="heatSat" aria-haspopup="dialog" aria-label="ててまるの あたたかさを かえる">
         <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 14.8V4a2 2 0 0 0-4 0v10.8a4 4 0 1 0 4 0z"/><path d="M12 11v6" stroke-width="3"/></svg>
-        <span class="sat-value" id="heatSatValue">36ど</span>
+        <span class="sat-value" id="heatSatValue">37ど</span>
         <span class="sat-label">あたたかさ</span>
       </button>
 
@@ -86,7 +86,10 @@
     <!-- 今日の目標 -->
     <div class="child-card goal-card intro-item">
       <span class="child-goal-label">きょうの もくひょう</span>
-      <div class="child-goal-value"><select id="subject" aria-label="きょうの きょうか"></select> を <select id="goal" aria-label="きょうの めあて"></select></div>
+      <div class="child-goal-value goal-summary" id="goalSummary" aria-hidden="true">さんすう を 10ぷん</div>
+      <!-- なにを・なんぷん を選ぶチップ(goal-picker.js)。値は下の select が持つ -->
+      <div class="goal-picker" id="goalPicker"></div>
+      <div hidden><select id="subject" aria-label="きょうの きょうか"></select><select id="goal" aria-label="きょうの めあて"></select></div>
       <button class="start-btn" id="startBtn" disabled>
         <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><polygon points="6 4 20 12 6 20"/></svg>
         <span id="startLabel">勉強モード（タイマー）</span>
@@ -105,12 +108,20 @@
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2c2 3-2 4-1 7 1-1 2-1 3 0 1 2-1 4-3 4-3 0-5-2-5-5 0-3 2-4 2-6 1 1 1 2 1 3z"/><path d="M9 17a3 3 0 0 0 6 0"/></svg>
         ててまるの あたたかさ
       </span>
-      <div class="temp-value" id="heatLabel">36ど</div>
+      <!-- ぬいぐるみ自体を温めるヒーター。ぎゅっとしたときに服の上から温かく感じる、やけどしない範囲(34〜40ど) -->
+      <div class="heat-readout">
+        <span class="temp-value" id="heatLabel">37ど</span>
+        <span class="heat-zone" id="heatZone">ひとはだ</span>
+      </div>
+      <p class="heat-note" id="heatNote">ぎゅっと すると、ひとはだ くらいの ぬくもり。</p>
       <div class="temp-row">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2v20M5 7l14 10M19 7L5 17M2 12h20"/></svg>
-        <input id="heat" type="range" min="28" max="40" step="1" value="36" aria-label="ててまるのあたたかさ">
+        <input id="heat" type="range" min="34" max="40" step="1" value="37" aria-label="ててまるのあたたかさ" aria-valuetext="37ど ひとはだ">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M2 12h2M20 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4"/></svg>
       </div>
+      <div class="heat-ticks" aria-hidden="true"><span>34</span><span>35</span><span>36</span><span>37</span><span>38</span><span>39</span><span>40</span></div>
+      <button type="button" class="heat-off" id="heatOff" aria-pressed="false">あたためを とめる</button>
+      <p class="heat-safety">やけど しないように、40ど より あつく ならないよ。</p>
       <button class="sheet-close pressable" data-close>できた</button>
     </div>
   </div>
@@ -118,10 +129,13 @@
 
   <!-- 学習中ロックオーバーレイ -->
   <div class="lock-overlay hidden" id="lockOverlay" role="dialog" aria-modal="true" aria-label="学習ロック中">
-    <div class="lock-icon-wrap"><plush-pal data-motion="idle" class="lock-canvas"></plush-pal>
-      <span class="lock-badge">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+    <div class="lock-icon-wrap"><plush-pal data-motion="idle" class="lock-canvas" id="lockPal"></plush-pal>
+      <span class="lock-badge" aria-hidden="true">
+        <svg class="badge-lock" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+        <svg class="badge-moon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>
       </span>
+      <!-- きゅうけいちゅうに ててまるの頭の上へ ふわふわ上がる Zzz -->
+      <span class="lock-zzz" aria-hidden="true"><span>z</span><span>z</span><span>Z</span></span>
     </div>
     <div class="lock-title">がくしゅうロック中</div>
     <div class="lock-sub">この画面で ててまると いっしょに<br>おべんきょうしよう</div>
@@ -132,8 +146,9 @@
 
     <div class="allowed-box">
       <button type="button" id="pauseBtn" class="allowed-item pill-btn">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-        <span id="pauseLabel">ひとやすみ</span>
+        <svg class="pause-rest-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>
+        <svg class="pause-back-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><polygon points="7 4 20 12 7 20"/></svg>
+        <span id="pauseLabel">きゅうけい する</span>
       </button>
     </div>
 

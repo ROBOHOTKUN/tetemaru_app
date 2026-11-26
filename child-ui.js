@@ -16,10 +16,17 @@ function setSpeech(text, { voice = true, keep = false } = {}) {
   if (!keep) speechTimer = setTimeout(() => { speechEl.textContent = greeting; }, 4000);
 }
 
-const TAP_LINES = ["わーい!", "くすぐったいよ〜", "えへへ、うれしいな!", "いっしょに あそぼ!"];
-let tapIndex = 0;
-tetemaru.addEventListener("pal-tap", () => {
-  setSpeech(TAP_LINES[tapIndex++ % TAP_LINES.length]);
+// タップの反応(viewer.js が選ぶ)ごとのセリフ
+const TAP_LINES = {
+  wave: ["やあ!", "おーい!"],
+  happy: ["わーい!", "くるっと まわったよ!"],
+  bounce: ["ぴょん ぴょん!", "いっしょに あそぼ!"],
+  hug: ["ぎゅーっ!", "えへへ、うれしいな!"],
+  sway: ["くすぐったいよ〜", "てれちゃうな〜"],
+};
+tetemaru.addEventListener("pal-tap", (e) => {
+  const lines = TAP_LINES[e.detail?.kind] || TAP_LINES.wave;
+  setSpeech(lines[Math.floor(Math.random() * lines.length)]);
 });
 
 // ---- あたたかさ(下から出るシート) ----
@@ -28,12 +35,43 @@ const heatLabel = document.getElementById("heatLabel");
 const heatSatValue = document.getElementById("heatSatValue");
 const heatSheet = document.getElementById("heatSheet");
 const heatSat = document.getElementById("heatSat");
-heat.value=prefs.heat || "36"; heatLabel.textContent=heatSatValue.textContent=heat.value+"ど";
+// ててまるの体を温めるヒーター。ぎゅっとしたときに服ごしに温かく感じる範囲で、
+// 低温やけどを避けるため 40ど を上限にする(ひとの肌は 33〜34ど、体温は 36〜37ど くらい)。
+const heatZone = document.getElementById("heatZone");
+const heatNote = document.getElementById("heatNote");
+const heatOff = document.getElementById("heatOff");
+const HEAT_MIN = 34, HEAT_MAX = 40, HEAT_DEFAULT = 37;
+const HEAT_ZONES = [
+  [35, "ほんのり", "ぎゅっと すると、ほんのり あったかい。"],
+  [37, "ひとはだ", "ぎゅっと すると、ひとはだ くらいの ぬくもり。"],
+  [39, "ぽかぽか", "ぎゅっと すると、ぽかぽか あったかい。"],
+  [40, "しっかり", "さむい ひに ぴったりの あたたかさ。"],
+];
+const savedHeat = Number(prefs.heat);
+let heatOn = prefs.heatOn !== false && prefs.heatOn !== "off";
+heat.value = savedHeat >= HEAT_MIN && savedHeat <= HEAT_MAX ? String(savedHeat) : String(HEAT_DEFAULT);
+function renderHeat() {
+  const [, zone, note] = HEAT_ZONES.find(([max]) => Number(heat.value) <= max);
+  heatLabel.textContent = heatOn ? heat.value + "ど" : "オフ";
+  heatSatValue.textContent = heatOn ? heat.value + "ど" : "オフ";
+  heatZone.textContent = heatOn ? zone : "おやすみ";
+  heatNote.textContent = heatOn ? note : "いまは あたためて いないよ。";
+  heat.setAttribute("aria-valuetext", heat.value + "ど " + zone);
+  heatOff.setAttribute("aria-pressed", String(!heatOn));
+  heatOff.textContent = heatOn ? "あたためを とめる" : "あたためる";
+  heatSheet.classList.toggle("is-off", !heatOn);
+}
 heat.addEventListener("input", () => {
-  setPref("heat",heat.value);
-  heatLabel.textContent = heat.value + "ど";
-  heatSatValue.textContent = heat.value + "ど";
+  if (!heatOn) { heatOn = true; setPref("heatOn", true); }
+  setPref("heat", heat.value);
+  renderHeat();
 });
+heatOff.addEventListener("click", () => {
+  heatOn = !heatOn;
+  setPref("heatOn", heatOn);
+  renderHeat();
+});
+renderHeat();
 function openHeatSheet() {
   heatSheet.hidden = false;
   requestAnimationFrame(() => heatSheet.classList.add("open"));
@@ -43,7 +81,8 @@ function closeHeatSheet() {
   heatSheet.classList.remove("open");
   setTimeout(() => { heatSheet.hidden = true; }, 220);
   heatSat.focus();
-  setSpeech(Number(heat.value) >= 37 ? "ぽかぽか あったかい!" : "ちょうど いい あたたかさ!");
+  const t = Number(heat.value);
+  setSpeech(!heatOn ? "あたためは おやすみ するね。" : t >= 38 ? "ぽかぽか あったかいよ!" : t <= 35 ? "ほんのり あったかいよ。" : "ひとはだ くらいの あったかさ!");
 }
 heatSat.addEventListener("click", openHeatSheet);
 heatSheet.querySelectorAll("[data-close]").forEach((el) => el.addEventListener("click", closeHeatSheet));
@@ -53,7 +92,7 @@ document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !heatShe
 const hugBtn = document.getElementById("hugBtn");
 hugBtn.addEventListener("click", () => {
   tetemaru.playMotion?.("hug");
-  setSpeech("あったかいね、ありがとう!");
+  setSpeech(heatOn ? "ぎゅーっ! あったかいね、ありがとう!" : "ぎゅーっ! ありがとう!");
 });
 
 // ---- 声のON/OFF ----
