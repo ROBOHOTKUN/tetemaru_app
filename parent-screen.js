@@ -68,9 +68,12 @@ function gateKind(value){
 async function enter(){
   clearScreen();
   $('toChild').href='child.html'+mode;
-  document.querySelector('.status-text').textContent=isDemo?'発表用デモ':'家庭用';
+  const statusText=document.querySelector('.status-text');
+  statusText.textContent=isDemo?'発表用デモ':'家庭用';
+  statusText.classList.toggle('quick-mode-label',isDemo);
   if(!isDemo){
-    record=await family();
+    try{record=await family();}
+    catch{record=initial();message('学習記録を保存できないブラウザのため、お試し用のデータを表示しています。');}
     const stage=gateKind(record);
     if(stage==='unlock'){
       gate('保護者用の暗証番号',form('unlock',pinField('暗証番号（数字4桁）',true),'ひらく'));
@@ -147,7 +150,7 @@ function showDashboard(selectedDate){
   dashboard.querySelectorAll('.kanji-text').forEach(el=>{el.innerHTML=ruby(el.textContent);});
   $('toChild').href='child.html'+mode;
   $('logTab').href=logLink;
-  dashboard.querySelector('.tab.active').href='parent.html'+mode;
+  $('homeTab').href='parent.html'+mode;
   $('returnMenu').href='trial.html'+mode;
   $('returnMenu').onclick=()=>{if(!isDemo)clearParentAccess();};
   $('parentSub').textContent=isDemo?'ゆいさん・小学3年生の学習記録':record.name+'さん・小学'+record.grade+'年生の学習記録';

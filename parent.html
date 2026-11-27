@@ -142,9 +142,10 @@
       <a class="more-link pressable" id="returnMenu" href="trial.html" aria-label="保護者・こども画面の切り替え">保護者⇄こども 切り替え</a>
     </div>
   </main>
+  </template>
 
   <nav class="tabbar">
-    <a class="tab active" href="parent.html" aria-current="page">
+    <a class="tab active" id="homeTab" href="parent.html" aria-current="page">
       <span class="tab-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9"/></svg></span>
       ホーム
     </a>
@@ -153,7 +154,6 @@
       学習記録
     </a>
   </nav>
-  </template>
   <dialog class="flow-sheet" id="parentDialog" aria-labelledby="sheetTitle">
     <div class="flow-content" id="sheetContent"></div>
     <p class="setting-note" role="status" id="sheetMessage"></p>
