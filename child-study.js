@@ -127,7 +127,8 @@ function paint(){
  $('subject').disabled=$('goal').disabled=!ready||locked;
  $('startBtn').disabled=false;$('quizBtn').disabled=!ready||locked;
  $('startLabel').textContent='勉強モード（タイマー）';
- $('nicknameBtn').hidden=demo||!ready;
+ $('nameBadge').hidden=demo||!ready;
+ if(ready){$('nameBadgeText').textContent=profile.nick;$('nameBadgeInitial').textContent=[...profile.nick][0]||'?'}
  const count=profile.history.filter(s=>s.date===dateAt()).length;
  const tile=document.querySelector('.sat-tr');
  tile.querySelector('.sat-value').textContent=count+'かい';
@@ -147,12 +148,45 @@ function paint(){
  ui.setGreeting(profile.nick+'、きょうは なにを やってみる？');
  syncGoal();
 }
+// よびかたは専用のシート(child.html の #nameSheet)で変える
+const suffixes=['ちゃん','くん','さん'];
+const splitName=n=>{const s=suffixes.find(x=>n.endsWith(x)&&n.length>x.length);return s?[n.slice(0,-s.length),s]:[n,'']};
+function nameSync(){
+ const nick=$('nameInput').value.trim(),[,suffix]=splitName(nick);
+ $('namePreview').textContent=nick||'……';
+ for(const chip of document.querySelectorAll('.name-chip'))chip.setAttribute('aria-pressed',String(Boolean(nick)&&chip.dataset.suffix===suffix));
+ $('nameError').textContent='';
+}
 function nickname(){
- openSheet('nickname','なんて よんでほしい？','<form><label>よんでほしい なまえ<input name="nick" maxlength="80" required value="'+text(profile.nick)+'"></label><button class="flow-primary">この なまえに する</button>'+closeButton+'</form>');
- formSubmit(async data=>{
-  const nick=data.get('nick').trim();
-  if(!nick){$('sheetError').textContent='なまえを いれてね。';return}
-  await load(v=>{if(v.paired&&v.name)v.nick=nick});closeSheet();paint();
+ const sheet=$('nameSheet');
+ if(profile.active||!sheet.hidden)return;
+ $('nameInput').value=profile.nick||'';nameSync();
+ sheet.hidden=false;
+ requestAnimationFrame(()=>{sheet.classList.add('open');$('nameInput').focus({preventScroll:true})});
+}
+function closeName(){
+ const sheet=$('nameSheet');
+ sheet.classList.remove('open');
+ setTimeout(()=>{sheet.hidden=true},220);
+ $('nameBadge').focus({preventScroll:true});
+}
+function setupName(){
+ $('nameBadge').onclick=nickname;
+ $('nameInput').oninput=nameSync;
+ for(const chip of document.querySelectorAll('.name-chip'))chip.onclick=()=>{
+  const [base]=splitName($('nameInput').value.trim());
+  if(!base){$('nameError').textContent='さきに なまえを いれてね。';$('nameInput').focus();return}
+  $('nameInput').value=base+chip.dataset.suffix;nameSync();
+ };
+ $('nameSheet').querySelectorAll('[data-close]').forEach(el=>el.onclick=closeName);
+ document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('nameSheet').hidden)closeName()});
+ $('nameForm').onsubmit=transact(async e=>{
+  e.preventDefault();
+  const nick=$('nameInput').value.trim();
+  if(!nick){$('nameError').textContent='なまえを いれてね。';$('nameInput').focus();return}
+  await load(v=>{if(v.paired&&v.name)v.nick=nick});
+  closeName();paint();
+  ui?.setSpeech(nick+'、よろしくね！');
  });
 }
 function startRecord(kind,subject,goal,material=''){
@@ -346,7 +380,7 @@ async function init(){
  }
  $('subject').onchange=()=>saveChoice(false);$('goal').onchange=()=>saveChoice(true);
  $('startBtn').onclick=transact(start);$('quizBtn').onclick=transact(pickTopic);
- $('nicknameBtn').onclick=nickname;$('pauseBtn').onclick=transact(pauseTimer);$('unlockBtn').onclick=transact(unlock);
+ setupName();$('pauseBtn').onclick=transact(pauseTimer);$('unlockBtn').onclick=transact(unlock);
  body.onclick=e=>{
   const choice=e.target.closest('[data-topic]'),action=e.target.closest('[data-demo]');
   if(choice)transact(()=>beginTopic(choice.dataset.topic))();

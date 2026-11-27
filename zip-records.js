@@ -33,23 +33,31 @@ function makeDay(date) {
   const label = '日月火水木金土'[d.getDay()];
   return {date,label,weekday:label+'曜日',sessions:[],breaks:[]};
 }
-function demoHistory() {
+// 発表用デモと同じ、前の日までの学習記録の例。家庭用でも記録に出す。
+function exampleHistory() {
   const history=exampleDays.map(({id,daysAgo,minutes})=>{
     const r=topics.find(t=>t.id===id);
     return {id:'example-'+id,kind:'quiz',date:dayAgo(daysAgo),subject:r.subject,material:r.title,
       ms:minutes*60000,goal:'まず1問',done:r.options[r.answer],insight:r.explanation,
       questions:[{text:r.question,hints:[r.hints[0]]}]};
   });
+  // Reserve today for the activities actually completed in this demo.
+  const featured=new Set(history.map(s=>s.date));
+  featured.add(dayAgo(0));
   if(typeof WEEK_DETAIL!=='undefined') {
     WEEK_DETAIL.forEach((d,i)=>{
       const date=dayAgo(6-i);
+      if(featured.has(date))return;
       for(const [j,s] of d.sessions.entries()) {
         history.push({id:'sample-'+i+'-'+j,date,subject:s.subject,material:s.material,
           ms:sessionMinutes(s)*60000,goal:s.pages+'ページ',questions:[],next:'',insight:'',done:'',breaks:j===0?d.breaks:[]});
       }
     });
   }
-  return history.concat(completedDemoSessions());
+  return history;
+}
+function demoHistory() {
+  return exampleHistory().concat(completedDemoSessions());
 }
 export function getDays(history,{weekOnly=false}={}) {
   const days=new Map();
@@ -57,7 +65,7 @@ export function getDays(history,{weekOnly=false}={}) {
     const d=dayAgo(i);
     days.set(d,makeDay(d));
   }
-  for (const session of isDemo ? demoHistory() : history||[]) {
+  for (const session of isDemo ? demoHistory() : exampleHistory().concat(history||[])) {
     const date=session.date;
     if (!date || (weekOnly && !days.has(date))) continue;
     if (!days.has(date)) days.set(date,makeDay(date));

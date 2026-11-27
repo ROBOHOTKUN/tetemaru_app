@@ -230,7 +230,9 @@ function renderQuestions(day){
       const hints=(q?.hints||[]).map(h=>`<div class="qa-answer"><img width="26" height="26" src="./friend-front.png" alt=""><span>${ruby(h)}</span></div>`).join('');
       const insight=s.insight||s.done;
       const key=s.id+'/'+i;
-      let reviewed=isDemo?Boolean(prefs().reviewed?.[key]):Boolean((q||s).reviewed);
+      // 例の記録(example-/sample-)は家庭の履歴に無いので、見返した印は設定に持つ
+      const example=isDemo||/^(example|sample)-/.test(s.id);
+      let reviewed=example?Boolean(prefs().reviewed?.[key]||(q||s).reviewed):Boolean((q||s).reviewed);
       wrap.innerHTML=`<button type="button" class="list-item list-item-plain" aria-expanded="false"><span class="list-icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg></span><span class="list-text"><span class="list-title">${ruby(q?.text||s.material||s.subject)}</span><span class="list-sub"><span class="tag ${reviewed?'':'tag-new'}">${reviewed?'見返し済み':'未確認'}</span>${ruby(s.subject)} ／ ${ruby(s.material)} ／ ${minuteText(duration(s))}</span></span>${chevron}</button>
       <div hidden><div class="qa-body"><div class="qa-question">${quiz?'こたえの説明':'自分で気づいたこと'}</div><p>${ruby(insight||'記入なし')}</p>${hints}${s.done && s.done!==insight?'<p>'+(quiz?'えらんだこたえ　':'できたこと　')+ruby(s.done)+'</p>':''}${s.next?'<p>次に取り組むこと　'+ruby(s.next)+'</p>':''}</div></div>`;
       const button=wrap.firstElementChild, body=wrap.lastElementChild;
@@ -240,7 +242,7 @@ function renderQuestions(day){
         button.setAttribute('aria-expanded',String(!body.hidden));
         if(body.hidden||reviewed)return;
         try{
-          if(isDemo)await savePreference('reviewed',{...prefs().reviewed,[key]:true});
+          if(example){if(!await savePreference('reviewed',{...prefs().reviewed,[key]:true}))return;}
           else {
             if(!await changeFamily(f=>{
               const saved=f.history.find(row=>row.id===s.id);
