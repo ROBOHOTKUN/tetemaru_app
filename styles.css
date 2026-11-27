@@ -299,8 +299,12 @@ input[type="range"]::-moz-range-thumb {
 .choice-arrow { color: var(--coral-deep); flex-shrink: 0; }
 .choice-card-child .choice-arrow { color: var(--white); }
 .entry-foot { font-size: 10.5px; color: var(--muted); }
-.entry-foot { display: flex; align-items: center; gap: 16px; }
-.entry-foot .mode-link { color: var(--coral-deep); text-decoration: underline; text-underline-offset: 3px; padding-block: 6px; }
+.entry-foot { display: flex; align-items: center; justify-content: center; gap: 16px; }
+.demo-cta {
+  width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px;
+  background: var(--coral); color: var(--white); font-size: 15px; font-weight: 800;
+  border-radius: 999px; padding: 16px 20px; box-shadow: 0 10px 22px rgba(242,112,126,0.35);
+}
 .flow-sheet {
   position: fixed; inset: auto 0 0; margin: 0 auto; width: min(100%,390px); max-width: 100%;
   max-height: min(85dvh,710px); overflow-y: auto; overscroll-behavior: contain;
