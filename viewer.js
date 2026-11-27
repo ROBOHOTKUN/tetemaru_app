@@ -326,8 +326,8 @@ class PlushPal extends HTMLElement{
     visibility.observe(this);
    }
    observer=new ResizeObserver(resize);observer.observe(button);resize();button.classList.add('ready');
-   button.onpointerdown=e=>{if(drag || !e.isPrimary || e.button!==0)return;stopReturn();drag={id:e.pointerId,x:e.clientX,y:e.clientY,yaw,pitch};dragged=false;button.setPointerCapture(e.pointerId)};
-   button.onpointermove=e=>{if(drag?.id!==e.pointerId)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;if(Math.hypot(dx,dy)>(e.pointerType==="touch"?7:4))dragged=true;if(dragged){yaw=drag.yaw+dx*.018;pitch=Math.max(-.55,Math.min(.55,drag.pitch+dy*.012));draw(performance.now())}};
+   button.onpointerdown=e=>{if(drag || !e.isPrimary || e.button!==0)return;stopReturn();drag={id:e.pointerId,x:e.clientX,y:e.clientY,yaw,pitch,t:performance.now()};dragged=false;button.setPointerCapture(e.pointerId)};
+   button.onpointermove=e=>{if(drag?.id!==e.pointerId)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;const moved=Math.hypot(dx,dy),quick=performance.now()-drag.t<220;if(moved>(e.pointerType==="touch"?(quick?24:14):8))dragged=true;if(dragged){yaw=drag.yaw+dx*.018;pitch=Math.max(-.55,Math.min(.55,drag.pitch+dy*.012));draw(performance.now())}};
    button.onpointerup=e=>{if(drag?.id!==e.pointerId)return;spinDir=Math.sign(yaw-drag.yaw)||spinDir;drag=null;if(!dragged)respond();returnToFront()};
    button.onlostpointercapture=button.onpointercancel=e=>{if(drag?.id===e.pointerId){drag=null;dragged=true;returnToFront()}};
    button.onkeydown=e=>{if(!drag&&(e.key==='ArrowLeft'||e.key==='ArrowRight')){e.preventDefault();stopReturn();spinDir=e.key==='ArrowLeft'?-1:1;yaw+=spinDir*.32;draw(performance.now());returnToFront()}};

@@ -972,3 +972,15 @@ plush-pal .model-button span{position:absolute;right:2px;top:2px;color:var(--cor
   .praise-overlay, .praise-overlay * { animation: none !important; }
   .praise-confetti { display: none; }
 }
+
+/* ---- 文字を えらんだり コピー したり できないように する(入力欄は べつ) ---- */
+html, body { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+input, textarea, [contenteditable="true"] { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }
+img, svg, canvas { -webkit-user-drag: none; }
+
+/* ---- ててまるの あたりはんてい ---- */
+/* ボタンではない まわりの まる(なかよし度・がんばり)は、重なった ててまるへの タップを じゃましない */
+.satellite:not(button) { pointer-events: none; }
+/* さわった しゅんかんに すこし へこんで、タップが とどいたと わかる */
+.tetemaru-btn .model-button canvas { transition: scale .12s ease; }
+.tetemaru-btn .model-button:active canvas { scale: .95; }
