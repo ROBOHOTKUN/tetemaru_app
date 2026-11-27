@@ -77,7 +77,35 @@ function minuteSlider(select) {
   });
   // 指をはなしたときに保存する(動かしているあいだは表示だけ)
   slider.addEventListener('change', () => select.dispatchEvent(new Event('change', {bubbles: true})));
-  return {group, sync() { slider.value = String(Math.max(0, select.selectedIndex)); slider.disabled = select.disabled; show(Number(slider.value)); }};
+  let sliding = false;
+  // 勉強モードを はじめる前に、つまみを target まで すーっと 動かす(終わると resolve)
+  function slideTo(target, duration = 900) {
+    const from = Number(slider.value);
+    if (from === target || matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      select.selectedIndex = target; slider.value = String(target); show(target);
+      document.getElementById('goalSummary')?.dispatchEvent(new Event('goal-preview'));
+      return Promise.resolve();
+    }
+    sliding = true; slider.step = 'any';
+    const t0 = performance.now();
+    return new Promise(resolve => {
+      const frame = now => {
+        const t = Math.min(1, (now - t0) / duration), e = 1 - Math.pow(1 - t, 3);
+        const v = from + (target - from) * e, i = Math.round(v);
+        slider.value = String(v);
+        if (select.selectedIndex !== i) {
+          select.selectedIndex = i;
+          document.getElementById('goalSummary')?.dispatchEvent(new Event('goal-preview'));
+        }
+        show(i); slider.style.setProperty('--fill', (v / last * 100) + '%');
+        if (t < 1) { requestAnimationFrame(frame); return; }
+        slider.step = '1'; slider.value = String(target); sliding = false;
+        show(target); resolve();
+      };
+      requestAnimationFrame(frame);
+    });
+  }
+  return {group, slideTo, sync() { if (!sliding) slider.value = String(Math.max(0, select.selectedIndex)); slider.disabled = select.disabled; show(Math.round(Number(slider.value))); }};
 }
 
 export function mountGoalPicker(subjectSelect, goalSelect, container) {
@@ -103,5 +131,7 @@ export function mountGoalPicker(subjectSelect, goalSelect, container) {
   subjectSelect.addEventListener('change', () => requestAnimationFrame(sync));
   goalSelect.addEventListener('change', () => requestAnimationFrame(sync));
   sync();
+  // なんぷん を value の選択肢まで すべらせる
+  sync.slideTo = value => minutes.slideTo(Math.max(0, [...goalSelect.options].findIndex(o => o.value === value)));
   return sync;
 }

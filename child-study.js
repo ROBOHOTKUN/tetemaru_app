@@ -105,8 +105,14 @@ function preferredGoal(subject){
  const saved=prefs.goalsBySubject?.[subject];
  return goalMinutes.has(saved)?saved:(subject==='英語'?'20分':'10分だけ');
 }
+// 勉強モードは「なんぷん」を 5ふんに よせてから はじめ、FAST_SPEED 倍で すすめて 5ふんで 自動で おわる
+const FAST_GOAL='5分だけ',FAST_SPEED=30;
+let fastFinishing=null;
+// パスワードで おわる シートを ひらいているあいだは タイマーを 止める(hold.at の時点で 固定)
+let hold=null;
 function elapsed(run,now=Date.now()){
- return (run.ms||0)+(run.status==='active'&&Number.isFinite(run.since)?Math.max(0,now-run.since):0);
+ if(hold&&hold.id===run.id)now=Math.min(now,hold.at);
+ return (run.ms||0)+(run.status==='active'&&Number.isFinite(run.since)?Math.max(0,now-run.since)*(run.fast?FAST_SPEED:1):0);
 }
 function progress(){
  const run=profile?.active;
@@ -116,6 +122,41 @@ function progress(){
  const minutes=goalMinutes.get(run.goal);
  $('lockProgressFill').parentElement.hidden=!minutes;
  if(minutes)$('lockProgressFill').style.width=Math.min(100,seconds/(minutes*60)*100)+'%';
+ if(run.fast&&minutes&&seconds>=minutes*60&&!fastFinishing)fastFinishing=transact(()=>finishFast(run.id))().finally(()=>{fastFinishing=null});
+}
+// 勉強が おわったら、画面いっぱいの ほめる がめんに きりかえる
+const praiseLines=['ててまるも うれしいよ。','つぎも いっしょに がんばろうね。','すごい しゅうちゅう りょく だったね！','きょうの きみは キラキラ してるよ。'];
+function showPraise(run){
+ const over=$('praiseOverlay');
+ const kana=new Map(subjects).get(run.subject)||run.subject||'';
+ const sec=Math.round((run.ms||0)/1000);
+ $('praiseSubject').textContent=kana;$('praiseSubject').hidden=!kana;
+ const [num,unit]=sec>=60?[Math.floor(sec/60),'ふん']:[sec,'びょう'];
+ $('praiseMinutes').textContent=num;over.querySelector('.praise-time small').textContent=unit;
+ $('praiseTitle').textContent=(profile.nick?profile.nick+'、':'')+'よく がんばったね！';
+ $('praiseMsg').textContent=praiseLines[Math.floor(Math.random()*praiseLines.length)];
+ over.hidden=false;
+ for(const selector of ['main','.tabbar','.child-topbar'])document.querySelector(selector).inert=true;
+ setTimeout(()=>$('praisePal').playMotion?.('happy'),700);
+ setTimeout(()=>{if(!over.hidden)$('praisePal').playMotion?.('happy')},2600);
+ $('praiseClose').focus({preventScroll:true});
+ ui.setSpeech($('praiseTitle').textContent+' '+$('praiseMsg').textContent);
+}
+function closePraise(){
+ $('praiseOverlay').hidden=true;
+ paint();ui.setSpeech('がんばった じかんを きろく したよ。',{voice:false});
+}
+async function finishFast(id){
+ let done=null;
+ await load(v=>{
+  const run=v.active;if(run?.id!==id)return false;
+  const now=Date.now();stopTime(run,now);run.ms=Math.min(run.ms,(goalMinutes.get(run.goal)||5)*60000);
+  run.status='completed';run.endedAt=now;
+  if(run.ms>=60000)run.affinityDay=dateAt(new Date(now));
+  if(!v.history.some(s=>s.id===id))v.history.push(run);
+  v.active=null;done={...run};
+ });
+ paint();if(done)showPraise(done);
 }
 function paint(){
  updateAffinity();
@@ -204,13 +245,14 @@ function stopTime(run,now){
 async function start(){
  await load();
  if(profile.active){paint();return}
+ await syncGoal.slideTo?.(FAST_GOAL);
  await load(v=>{
   if(v.active||!v.paired||!v.nick||(!demo&&!v.pin))return false;
   if(v.quiz?.started){
    v.quiz.ms=quizElapsed(v.quiz);v.quiz.started=false;v.quiz.paused=false;
    const br=v.quiz.breaks?.at(-1);if(br&&!br.endedAt)br.endedAt=Date.now();
   }
-  v.active=startRecord('timer',$('subject').value,$('goal').value);
+  v.active={...startRecord('timer',$('subject').value,FAST_GOAL),fast:true};
  });
  closeSheet();paint();
 }
@@ -231,6 +273,16 @@ async function unlock(){
  const field=demo?'':' inputmode="numeric" pattern="[0-9]{4}" maxlength="4"';
  const help='<p>おうちのひとの パスワードが じどうで はいるよ。</p>';
  openSheet('unlock','タイマーを おわる',help+'<form><label>パスワード<input type="password" name="code" autocomplete="off" required'+field+'></label><button type="submit" class="flow-primary">解除して記録する</button>'+closeButton+'</form>');
+ if(!hold){
+  hold={id,at:Date.now()};
+  // 記録せずに とじたら、止めていた あいだの 分だけ はじまりを ずらして 続きから はかる
+  dialog.addEventListener('close',async()=>{
+   const held=hold;if(!held)return;
+   const gap=Date.now()-held.at;
+   try{await load(v=>{const run=v.active;if(run?.id!==held.id||run.status!=='active'||!Number.isFinite(run.since))return false;run.since+=gap})}
+   finally{if(hold===held)hold=null}
+  },{once:true});
+ }
  formSubmit(async data=>{
   const code=String(data.get('code')??'');
   if(!code.length)return;
@@ -239,15 +291,17 @@ async function unlock(){
   if(!demo&&(!pin||!await verifyParentPin(code,pin))){
    $('sheetError').textContent='パスワードを確認してください。';return;
   }
+  let done=null;
   await load(v=>{
    const run=v.active;if(run?.id!==id||(!demo&&v.pin!==pin))return false;
    const now=Date.now();stopTime(run,now);run.status='completed';run.endedAt=now;
    if(run.ms>=60000)run.affinityDay=dateAt(new Date(now));
    if(!v.history.some(s=>s.id===id))v.history.push(run);
-   v.active=null;
+   v.active=null;done={...run};
   });
+  if(profile.active?.id!==id)hold=null;
   if(profile.active?.id===id){$('sheetError').textContent='パスワードが変更されました。もう一度入力してください。';return}
-  closeSheet();paint();ui.setSpeech('がんばった じかんを きろくしたよ。');
+  closeSheet();paint();if(done)showPraise(done);
  });
  autoUnlock(body.querySelector('form'));
 }
@@ -380,7 +434,8 @@ async function init(){
  }
  $('subject').onchange=()=>saveChoice(false);$('goal').onchange=()=>saveChoice(true);
  $('startBtn').onclick=transact(start);$('quizBtn').onclick=transact(pickTopic);
- setupName();$('pauseBtn').onclick=transact(pauseTimer);$('unlockBtn').onclick=transact(unlock);
+ setupName();
+ $('praiseClose').onclick=closePraise;$('pauseBtn').onclick=transact(pauseTimer);$('unlockBtn').onclick=transact(unlock);
  body.onclick=e=>{
   const choice=e.target.closest('[data-topic]'),action=e.target.closest('[data-demo]');
   if(choice)transact(()=>beginTopic(choice.dataset.topic))();
@@ -395,6 +450,9 @@ async function init(){
  paint();
  if(!demo&&profile.paired&&profile.name&&!profile.active&&new URLSearchParams(location.search).get('panel')==='name')nickname();
  if(!profile.active&&profile.quiz?.kind==='quiz'&&profile.quiz.started)showQuestion();
+ // はやく すすむ タイマーの 数字が なめらかに かわるよう、毎フレーム更新する
+ (function frame(){progress();requestAnimationFrame(frame)})();
+ // 画面の描画が止まっている(うらに かくれている など)ときも、おわりの 判定は すすめる
  setInterval(progress,500);
  function refreshAtMidnight(){
   const next=new Date();next.setHours(24,0,0,0);
