@@ -40,13 +40,9 @@ function demoHistory() {
       ms:minutes*60000,goal:'まず1問',done:r.options[r.answer],insight:r.explanation,
       questions:[{text:r.question,hints:[r.hints[0]]}]};
   });
-  // Reserve today for the activities actually completed in this demo.
-  const featured=new Set(history.map(s=>s.date));
-  featured.add(dayAgo(0));
   if(typeof WEEK_DETAIL!=='undefined') {
     WEEK_DETAIL.forEach((d,i)=>{
       const date=dayAgo(6-i);
-      if(featured.has(date))return;
       for(const [j,s] of d.sessions.entries()) {
         history.push({id:'sample-'+i+'-'+j,date,subject:s.subject,material:s.material,
           ms:sessionMinutes(s)*60000,goal:s.pages+'ページ',questions:[],next:'',insight:'',done:'',breaks:j===0?d.breaks:[]});

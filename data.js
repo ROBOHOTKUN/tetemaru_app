@@ -69,7 +69,9 @@ const WEEK_DETAIL = [
   },
   {
     date: "2026-12-06", label: "日", weekday: "日曜日",
-    sessions: [],
+    sessions: [
+      { subject: "算数", material: "calc.ドリル3年 わり算の筆算", pages: "8〜9", start: "15:00", end: "15:10" },
+    ],
     breaks: [],
   },
 ];
