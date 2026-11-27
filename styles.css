@@ -984,3 +984,6 @@ img, svg, canvas { -webkit-user-drag: none; }
 /* さわった しゅんかんに すこし へこんで、タップが とどいたと わかる */
 .tetemaru-btn .model-button canvas { transition: scale .12s ease; }
 .tetemaru-btn .model-button:active canvas { scale: .95; }
+
+/* こえは オフに 固定: 見た目は そのまま、押しても かわらない */
+.voice-fixed { cursor: default; }

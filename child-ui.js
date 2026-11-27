@@ -95,15 +95,12 @@ hugBtn.addEventListener("click", () => {
   setSpeech(heatOn ? "ぎゅーっ! あったかいね、ありがとう!" : "ぎゅーっ! ありがとう!");
 });
 
-// ---- 声のON/OFF ----
+// ---- 声: いつも OFF に 固定(ボタンは「こえ オフ」の 表示のまま、押しても オンに ならない) ----
 const voiceToggle = document.getElementById("voiceToggle");
-let voiceOn = prefs.voice !== "off";
-voiceToggle.setAttribute("aria-pressed",String(voiceOn));
-voiceToggle.addEventListener("click", () => {
-  voiceOn = !voiceOn; setPref("voice",voiceOn?"on":"off");
-  voiceToggle.setAttribute("aria-pressed", String(voiceOn));
-  if (voiceOn) sayIfOn("ててまるだよ、よろしくね!");
-});
+const voiceOn = false;
+voiceToggle.setAttribute("aria-pressed", "false");
+voiceToggle.setAttribute("aria-disabled", "true");
+voiceToggle.setAttribute("aria-label", "ててまるの声は オフ です");
 
 // voice.js の speak() を、声OFFの時は呼ばないようにラップする
 function sayIfOn(text) {
