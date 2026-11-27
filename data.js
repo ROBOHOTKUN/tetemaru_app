@@ -16,7 +16,7 @@ const SUBJECT_COLORS = {
 // breaks:  { start, end, minutes, reason }
 const WEEK_DETAIL = [
   {
-    date: "2026-11-16", label: "月", weekday: "月曜日",
+    date: "2026-11-30", label: "月", weekday: "月曜日",
     sessions: [
       { subject: "算数", material: "calc.ドリル3年 あまりのあるわり算", pages: "12〜14", start: "16:00", end: "16:25" },
       { subject: "理科", material: "こん虫のそだちかた", pages: "8〜10", start: "16:35", end: "16:45" },
@@ -24,7 +24,7 @@ const WEEK_DETAIL = [
     breaks: [{ start: "16:25", end: "16:35", minutes: 10, reason: "お茶を飲んだ" }],
   },
   {
-    date: "2026-11-17", label: "火", weekday: "火曜日",
+    date: "2026-12-01", label: "火", weekday: "火曜日",
     sessions: [
       { subject: "国語", material: "かんじれんしゅうノート 3年", pages: "3", start: "17:00", end: "17:10" },
       { subject: "英語", material: "えいごリズムあそびワーク", pages: "5〜6", start: "17:10", end: "17:20" },
@@ -33,7 +33,7 @@ const WEEK_DETAIL = [
     breaks: [{ start: "17:20", end: "17:25", minutes: 5, reason: "トイレ" }],
   },
   {
-    date: "2026-11-18", label: "水", weekday: "水曜日",
+    date: "2026-12-02", label: "水", weekday: "水曜日",
     sessions: [
       { subject: "算数", material: "calc.ドリル3年 あまりのあるわり算", pages: "15〜16", start: "16:10", end: "16:30" },
       { subject: "国語", material: "かんじれんしゅうノート 3年", pages: "4", start: "16:30", end: "16:40" },
@@ -42,7 +42,7 @@ const WEEK_DETAIL = [
     breaks: [{ start: "16:40", end: "16:50", minutes: 10, reason: "ストレッチ" }],
   },
   {
-    date: "2026-11-19", label: "木", weekday: "木曜日",
+    date: "2026-12-03", label: "木", weekday: "木曜日",
     sessions: [
       { subject: "算数", material: "calc.ドリル3年 あまりのあるわり算", pages: "17", start: "16:00", end: "16:15" },
       { subject: "社会", material: "まちたんけんノート(地図記号)", pages: "22〜23", start: "16:15", end: "16:25" },
@@ -50,7 +50,7 @@ const WEEK_DETAIL = [
     breaks: [],
   },
   {
-    date: "2026-11-20", label: "金", weekday: "金曜日",
+    date: "2026-12-04", label: "金", weekday: "金曜日",
     sessions: [
       { subject: "算数", material: "calc.ドリル3年 わり算の筆算", pages: "1〜3", start: "16:00", end: "16:30" },
       { subject: "理科", material: "こん虫のそだちかた", pages: "11〜12", start: "16:40", end: "16:50" },
@@ -60,23 +60,16 @@ const WEEK_DETAIL = [
     breaks: [{ start: "16:30", end: "16:40", minutes: 10, reason: "お茶を飲んだ" }],
   },
   {
-    date: "2026-11-21", label: "土", weekday: "土曜日",
+    date: "2026-12-05", label: "土", weekday: "土曜日",
     sessions: [
       { subject: "算数", material: "calc.ドリル3年 わり算の筆算", pages: "4〜7", start: "10:00", end: "10:25" },
       { subject: "理科", material: "じしゃくのふしぎ", pages: "1〜4", start: "10:35", end: "10:50" },
-      { subject: "国語", material: "かんじれんしゅうノート 3年", pages: "6〜7", start: "11:00", end: "11:10" },
-      { subject: "英語", material: "えいごリズムあそびワーク", pages: "8〜9", start: "11:10", end: "11:20" },
     ],
-    breaks: [
-      { start: "10:25", end: "10:35", minutes: 10, reason: "おやつ" },
-      { start: "10:50", end: "11:00", minutes: 10, reason: "すこし遊んだ" },
-    ],
+    breaks: [{ start: "10:25", end: "10:35", minutes: 10, reason: "おやつ" }],
   },
   {
-    date: "2026-11-22", label: "日", weekday: "日曜日",
-    sessions: [
-      { subject: "算数", material: "calc.ドリル3年 わり算の筆算", pages: "8〜9", start: "15:00", end: "15:10" },
-    ],
+    date: "2026-12-06", label: "日", weekday: "日曜日",
+    sessions: [],
     breaks: [],
   },
 ];
@@ -85,7 +78,7 @@ const WEEK_DETAIL = [
 const QUESTIONS = [
   {
     id: 1,
-    date: "2026-11-21",
+    date: "2026-12-05",
     subject: "算数",
     unit: "わり算の筆算",
     question: "あまりが出るわり算の筆算のやりかたがわからない",
@@ -94,7 +87,7 @@ const QUESTIONS = [
   },
   {
     id: 2,
-    date: "2026-11-18",
+    date: "2026-12-02",
     subject: "国語",
     unit: "漢字の読み方",
     question: "「流」という漢字の読み方がわからない",
@@ -103,7 +96,7 @@ const QUESTIONS = [
   },
   {
     id: 3,
-    date: "2026-11-16",
+    date: "2026-12-04",
     subject: "理科",
     unit: "こん虫のそだちかた",
     question: "ちょうちょは卵からどうやってちょうになるの?",
