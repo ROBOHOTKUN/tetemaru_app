@@ -106,7 +106,7 @@ function preferredGoal(subject){
  return goalMinutes.has(saved)?saved:(subject==='英語'?'20分':'10分だけ');
 }
 // 勉強モードは「なんぷん」を 5ふんに よせてから はじめ、FAST_SPEED 倍で すすめて 5ふんで 自動で おわる
-const FAST_GOAL='5分だけ',FAST_SPEED=30;
+const FAST_GOAL='5分だけ',FAST_SECONDS=7,FAST_SPEED=5*60/FAST_SECONDS; // 5ふんを 7びょうで
 let fastFinishing=null;
 // パスワードで おわる シートを ひらいているあいだは タイマーを 止める(hold.at の時点で 固定)
 let hold=null;

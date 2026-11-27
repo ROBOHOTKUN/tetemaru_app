@@ -1,4 +1,4 @@
-const CACHE='tetemaru-shell-native-family-v60';
+const CACHE='tetemaru-shell-native-family-v61';
 const base=new URL('./',self.location.href);
 const files=['index.html', 'trial.html', 'native-entry.js', 'styles.css', 'child.html', 'child-ui.js', 'child-study.js', 'parent.html', 'parent-screen.js', 'study-log.html', 'zip-log.js', 'zip-records.js', 'store.js', 'pin-kdf.js', 'data.js', 'demo.js', 'voice.js', 'viewer.js', 'greeting.js', 'character-motion.js', 'GLTFLoader.js', 'BufferGeometryUtils.js', 'three.module.js', 'pink-pal.glb', 'pink-light.bin', 'friend-front.png', 'timer.html', 'sample-parent.html', 'sample-log.html', 'trial-data.js'];
 files.push('vendor/interaction.js','demo-topics.js','affinity.js','autofill.js','goal-picker.js');
